@@ -3,6 +3,7 @@ node_modules/
 package-lock.json
 public/art/
 public/ui/
+# Original Microsoft C/C++ source submodule.
 sources/
 src/irc/gamja/
 vendor/

@@ -35,14 +35,23 @@ in the browser.
 ## Running it
 
 ```sh
+git clone --recurse-submodules https://github.com/comicchat/comicchat.git
+cd comicchat
 npm install
 npm run extract-art   # one-time: decode .avb/.bgb art into public/art
 npm run dev           # http://localhost:5885
 ```
 
-The art extraction expects the original sources checkout under
-`sources/comic-chat` (this repo layout). `tools/extract-ui.mjs` converts the
-`res/*.bmp` UI resources (emotion faces, toolbar strips).
+The original Microsoft source release is pinned as the
+`sources/comic-chat` Git submodule and supplies the files for art extraction.
+For a clone made without `--recurse-submodules`, initialize it with:
+
+```sh
+git submodule update --init --recursive
+```
+
+`tools/extract-ui.mjs` converts the `res/*.bmp` UI resources (emotion faces,
+toolbar strips).
 
 ## Connecting
 
@@ -59,10 +68,10 @@ websocket listener in its config:
 ```yaml
 server:
   listeners:
-    "127.0.0.1:8067":
+    '127.0.0.1:8067':
       websocket: true
   websockets:
-    allowed-origins: ["*"]
+    allowed-origins: ['*']
 ```
 
 then point the connect dialog at `ws://localhost:8067`.
@@ -76,6 +85,7 @@ src/art/      runtime art store (extracted characters/backgrounds)
 src/ui/       98.css chrome: menus, dialogs, wheel, roster
 tools/        build-time extractors for the original binary art
 docs/         engine notes reverse-engineered from the 1998 sources
+sources/      pinned Microsoft Comic Chat source submodule
 ```
 
 ## Licensing
@@ -85,6 +95,5 @@ docs/         engine notes reverse-engineered from the 1998 sources
   (AGPL-3.0-or-later) — the combined web app is effectively AGPL; see
   `src/irc/gamja/LICENSE`.
 - Original Comic Chat sources and art: MIT, © Microsoft Corporation
-  (from the [microsoft/comic-chat](https://github.com/microsoft/comic-chat)
-  release; keep a checkout under `sources/comic-chat` to re-run the art
-  extraction). Character art by Jim Woodring.
+  (the [microsoft/comic-chat](https://github.com/microsoft/comic-chat)
+  submodule). Character art by Jim Woodring.
