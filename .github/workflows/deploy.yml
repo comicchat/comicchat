@@ -47,7 +47,9 @@ jobs:
           git clone --quiet --depth 1 \
             "https://x-access-token:${DEPLOY_TOKEN}@github.com/comicchat/comicchat.github.io.git" site
           git -C site checkout -B main
-          rsync -a --delete --exclude .git/ dist/ site/
+          # Vite's generated index can retain the same size and timestamp while
+          # its hashed asset URL changes. Compare contents so it is not skipped.
+          rsync -a --checksum --delete --exclude .git/ dist/ site/
           touch site/.nojekyll
           git -C site config user.name "github-actions[bot]"
           git -C site config user.email "41898282+github-actions[bot]@users.noreply.github.com"
