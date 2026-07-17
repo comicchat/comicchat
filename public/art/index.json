@@ -1,0 +1,417 @@
+{
+ "characters": [
+  {
+   "id": "anna",
+   "name": "Anna",
+   "type": "complex",
+   "dir": "characters/anna",
+   "icon": "p21",
+   "poseCount": 22,
+   "faces": 18,
+   "torsos": 16,
+   "bodies": 0
+  },
+  {
+   "id": "armando",
+   "name": "Armando",
+   "type": "complex",
+   "dir": "characters/armando",
+   "icon": "p18",
+   "poseCount": 19,
+   "faces": 12,
+   "torsos": 11,
+   "bodies": 0
+  },
+  {
+   "id": "bolo",
+   "name": "Bolo",
+   "type": "complex",
+   "dir": "characters/bolo",
+   "icon": "p18",
+   "poseCount": 19,
+   "faces": 12,
+   "torsos": 11,
+   "bodies": 0
+  },
+  {
+   "id": "buck",
+   "name": "BUCK",
+   "type": "complex",
+   "dir": "characters/buck",
+   "icon": "p25",
+   "poseCount": 26,
+   "faces": 14,
+   "torsos": 13,
+   "bodies": 0
+  },
+  {
+   "id": "connor",
+   "name": "CONNOR",
+   "type": "simple",
+   "dir": "characters/connor",
+   "icon": "p12",
+   "poseCount": 13,
+   "faces": 0,
+   "torsos": 0,
+   "bodies": 15
+  },
+  {
+   "id": "cro",
+   "name": "Cro",
+   "type": "complex",
+   "dir": "characters/cro",
+   "icon": "p19",
+   "poseCount": 20,
+   "faces": 13,
+   "torsos": 13,
+   "bodies": 0
+  },
+  {
+   "id": "dan",
+   "name": "DAN",
+   "type": "complex",
+   "dir": "characters/dan",
+   "icon": "p24",
+   "poseCount": 25,
+   "faces": 17,
+   "torsos": 11,
+   "bodies": 0
+  },
+  {
+   "id": "denise",
+   "name": "Denise",
+   "type": "complex",
+   "dir": "characters/denise",
+   "icon": "p20",
+   "poseCount": 21,
+   "faces": 19,
+   "torsos": 9,
+   "bodies": 0
+  },
+  {
+   "id": "glenda",
+   "name": "Greg",
+   "type": "simple",
+   "dir": "characters/glenda",
+   "icon": "p1",
+   "poseCount": 2,
+   "faces": 0,
+   "torsos": 0,
+   "bodies": 1
+  },
+  {
+   "id": "hugh",
+   "name": "Hugh",
+   "type": "complex",
+   "dir": "characters/hugh",
+   "icon": "p19",
+   "poseCount": 20,
+   "faces": 14,
+   "torsos": 12,
+   "bodies": 0
+  },
+  {
+   "id": "jordan",
+   "name": "Jordan",
+   "type": "simple",
+   "dir": "characters/jordan",
+   "icon": "p10",
+   "poseCount": 11,
+   "faces": 0,
+   "torsos": 0,
+   "bodies": 14
+  },
+  {
+   "id": "kevin",
+   "name": "Kevin",
+   "type": "complex",
+   "dir": "characters/kevin",
+   "icon": "p17",
+   "poseCount": 18,
+   "faces": 13,
+   "torsos": 15,
+   "bodies": 0
+  },
+  {
+   "id": "kirby",
+   "name": "KIRBY",
+   "type": "complex",
+   "dir": "characters/kirby",
+   "icon": "p25",
+   "poseCount": 26,
+   "faces": 14,
+   "torsos": 14,
+   "bodies": 0
+  },
+  {
+   "id": "kwensa",
+   "name": "Kwensa",
+   "type": "complex",
+   "dir": "characters/kwensa",
+   "icon": "p18",
+   "poseCount": 19,
+   "faces": 16,
+   "torsos": 18,
+   "bodies": 0
+  },
+  {
+   "id": "lance",
+   "name": "LANCE",
+   "type": "complex",
+   "dir": "characters/lance",
+   "icon": "p18",
+   "poseCount": 19,
+   "faces": 11,
+   "torsos": 11,
+   "bodies": 0
+  },
+  {
+   "id": "lynnea",
+   "name": "Lynnea",
+   "type": "complex",
+   "dir": "characters/lynnea",
+   "icon": "p26",
+   "poseCount": 27,
+   "faces": 17,
+   "torsos": 18,
+   "bodies": 0
+  },
+  {
+   "id": "margaret",
+   "name": "Margaret",
+   "type": "complex",
+   "dir": "characters/margaret",
+   "icon": "p24",
+   "poseCount": 25,
+   "faces": 20,
+   "torsos": 13,
+   "bodies": 0
+  },
+  {
+   "id": "maynard",
+   "name": "Maynard",
+   "type": "complex",
+   "dir": "characters/maynard",
+   "icon": "p17",
+   "poseCount": 18,
+   "faces": 15,
+   "torsos": 26,
+   "bodies": 0
+  },
+  {
+   "id": "mike",
+   "name": "Mike",
+   "type": "complex",
+   "dir": "characters/mike",
+   "icon": "p16",
+   "poseCount": 17,
+   "faces": 10,
+   "torsos": 8,
+   "bodies": 0
+  },
+  {
+   "id": "pedagog",
+   "name": "Pedagogue",
+   "type": "simple",
+   "dir": "characters/pedagog",
+   "icon": "p1",
+   "poseCount": 2,
+   "faces": 0,
+   "torsos": 0,
+   "bodies": 1
+  },
+  {
+   "id": "rainbow",
+   "name": "Rainbow",
+   "type": "simple",
+   "dir": "characters/rainbow",
+   "icon": "p1",
+   "poseCount": 2,
+   "faces": 0,
+   "torsos": 0,
+   "bodies": 1
+  },
+  {
+   "id": "rebecca",
+   "name": "Rebecca",
+   "type": "complex",
+   "dir": "characters/rebecca",
+   "icon": "p19",
+   "poseCount": 20,
+   "faces": 19,
+   "torsos": 24,
+   "bodies": 0
+  },
+  {
+   "id": "sage",
+   "name": "Sage",
+   "type": "complex",
+   "dir": "characters/sage",
+   "icon": "p17",
+   "poseCount": 18,
+   "faces": 20,
+   "torsos": 17,
+   "bodies": 0
+  },
+  {
+   "id": "scotty",
+   "name": "Scotty",
+   "type": "complex",
+   "dir": "characters/scotty",
+   "icon": "p20",
+   "poseCount": 21,
+   "faces": 24,
+   "torsos": 9,
+   "bodies": 0
+  },
+  {
+   "id": "susan",
+   "name": "Susan",
+   "type": "complex",
+   "dir": "characters/susan",
+   "icon": "p30",
+   "poseCount": 31,
+   "faces": 20,
+   "torsos": 11,
+   "bodies": 0
+  },
+  {
+   "id": "tiki",
+   "name": "Tiki",
+   "type": "complex",
+   "dir": "characters/tiki",
+   "icon": "p23",
+   "poseCount": 24,
+   "faces": 20,
+   "torsos": 12,
+   "bodies": 0
+  },
+  {
+   "id": "tongtyed",
+   "name": "TongueTyed",
+   "type": "complex",
+   "dir": "characters/tongtyed",
+   "icon": "p19",
+   "poseCount": 20,
+   "faces": 13,
+   "torsos": 13,
+   "bodies": 0
+  },
+  {
+   "id": "tux",
+   "name": "Tux",
+   "type": "simple",
+   "dir": "characters/tux",
+   "icon": "p1",
+   "poseCount": 2,
+   "faces": 0,
+   "torsos": 0,
+   "bodies": 1
+  },
+  {
+   "id": "veronica",
+   "name": "VERONICA",
+   "type": "complex",
+   "dir": "characters/veronica",
+   "icon": "p26",
+   "poseCount": 27,
+   "faces": 12,
+   "torsos": 15,
+   "bodies": 0
+  },
+  {
+   "id": "waf",
+   "name": "Waf",
+   "type": "simple",
+   "dir": "characters/waf",
+   "icon": "p1",
+   "poseCount": 2,
+   "faces": 0,
+   "torsos": 0,
+   "bodies": 1
+  },
+  {
+   "id": "xeno",
+   "name": "Xeno",
+   "type": "complex",
+   "dir": "characters/xeno",
+   "icon": "p20",
+   "poseCount": 21,
+   "faces": 13,
+   "torsos": 14,
+   "bodies": 0
+  }
+ ],
+ "backgrounds": [
+  {
+   "id": "buckroom",
+   "name": "buckroom",
+   "file": "backgrounds/buckroom.png",
+   "w": 350,
+   "h": 350,
+   "copyright": "Copyright © 1996, 1997, 1998 Microsoft Corporation"
+  },
+  {
+   "id": "clouds",
+   "name": "clouds",
+   "file": "backgrounds/clouds.png",
+   "w": 640,
+   "h": 480,
+   "copyright": "Copyright © 1996, 1997, 1998 Microsoft Corporation"
+  },
+  {
+   "id": "den",
+   "name": "den",
+   "file": "backgrounds/den.png",
+   "w": 315,
+   "h": 315
+  },
+  {
+   "id": "field",
+   "name": "field",
+   "file": "backgrounds/field.png",
+   "w": 315,
+   "h": 315,
+   "copyright": "Copyright © 1996, 1997, 1998 Microsoft Corporation"
+  },
+  {
+   "id": "pastoral",
+   "name": "pastoral",
+   "file": "backgrounds/pastoral.png",
+   "w": 315,
+   "h": 315,
+   "copyright": "Copyright © 1996, 1997, 1998 Microsoft Corporation"
+  },
+  {
+   "id": "room",
+   "name": "room",
+   "file": "backgrounds/room.png",
+   "w": 315,
+   "h": 315,
+   "copyright": "Copyright © 1996, 1997, 1998 Microsoft Corporation"
+  },
+  {
+   "id": "space",
+   "name": "space",
+   "file": "backgrounds/space.png",
+   "w": 350,
+   "h": 350,
+   "copyright": "Copyright © 1996, 1997, 1998 Microsoft Corporation"
+  },
+  {
+   "id": "volcano",
+   "name": "volcano",
+   "file": "backgrounds/volcano.png",
+   "w": 315,
+   "h": 315
+  },
+  {
+   "id": "yellow",
+   "name": "yellow",
+   "file": "backgrounds/yellow.png",
+   "w": 315,
+   "h": 315,
+   "copyright": "Copyright © 1996, 1997, 1998 Microsoft Corporation"
+  }
+ ]
+}

@@ -1,0 +1,34 @@
+{
+ "id": "waf",
+ "name": "Waf",
+ "type": "simple",
+ "style": 1,
+ "flags": 5,
+ "copyright": "Copyright © 1996, 1997, 1998 Microsoft Corporation\\nJim Woodring",
+ "icon": "p1",
+ "poses": {
+  "p0": {
+   "file": "p0.png",
+   "aura": "p0-aura.png",
+   "w": 208,
+   "h": 367
+  },
+  "p1": {
+   "file": "p1.png",
+   "w": 40,
+   "h": 40
+  }
+ },
+ "faces": [],
+ "torsos": [],
+ "bodies": [
+  {
+   "pose": "p0",
+   "emotion": "neutral",
+   "emotionIndex": 9,
+   "intensity": 0,
+   "x": 158,
+   "y": 85
+  }
+ ]
+}

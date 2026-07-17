@@ -1,0 +1,563 @@
+/* Comic Chat web — chrome layout on top of 98.css */
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+#desktop {
+  height: 100%;
+  background: #008080; /* classic teal desktop */
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+#chat-window {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+#chat-window > .title-bar {
+  flex: 0 0 auto;
+}
+#chat-window .title-bar-caption {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+#chat-window .title-bar-icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+}
+#chat-window .title-bar-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- menu bar ------------------------------------------------------- */
+
+#menu-bar {
+  flex: 0 0 auto;
+  display: flex;
+  background: silver;
+  padding: 1px 0;
+  user-select: none;
+  font-size: 11px;
+}
+#menu-bar .menu-item {
+  padding: 3px 7px;
+  cursor: default;
+}
+#menu-bar .menu-item:hover,
+#menu-bar .menu-item.open {
+  background: navy;
+  color: white;
+}
+.menu-popup {
+  position: absolute;
+  z-index: 100;
+  background: silver;
+  box-shadow:
+    inset -1px -1px #0a0a0a,
+    inset 1px 1px #dfdfdf,
+    inset -2px -2px grey,
+    inset 2px 2px #fff;
+  padding: 2px;
+  min-width: 180px;
+  font-size: 11px;
+}
+.menu-popup .popup-item {
+  padding: 4px 20px 4px 24px;
+  position: relative;
+  white-space: nowrap;
+}
+.menu-popup .popup-item:hover:not(.disabled) {
+  background: navy;
+  color: white;
+}
+.menu-popup .popup-item.disabled {
+  color: grey;
+}
+.menu-popup .popup-item.checked::before {
+  content: '✓';
+  position: absolute;
+  left: 8px;
+}
+.menu-popup .popup-sep {
+  height: 0;
+  margin: 3px 2px;
+  border-top: 1px solid grey;
+  border-bottom: 1px solid #fff;
+}
+
+/* --- toolbar --------------------------------------------------------- */
+
+#toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 4px;
+  background: silver;
+  border-top: 1px solid #fff;
+  border-bottom: 1px solid grey;
+}
+#toolbar .tb-btn {
+  width: 24px;
+  min-width: 24px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: silver;
+  border: 1px solid transparent;
+  box-shadow: none;
+  padding: 0;
+  image-rendering: pixelated;
+}
+#toolbar .tb-btn:hover {
+  box-shadow:
+    inset -1px -1px grey,
+    inset 1px 1px #fff;
+}
+#toolbar .tb-btn:active,
+#toolbar .tb-btn.active {
+  box-shadow:
+    inset -1px -1px #fff,
+    inset 1px 1px grey;
+}
+#toolbar .tb-btn img {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+}
+#toolbar .tb-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 3px;
+  border-left: 1px solid grey;
+  border-right: 1px solid #fff;
+}
+
+/* --- main split ------------------------------------------------------ */
+
+#main-body {
+  flex: 1;
+  display: flex;
+  margin: 0;
+  padding: 2px;
+  min-height: 0;
+}
+
+#comic-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  box-shadow:
+    inset -1px -1px #dfdfdf,
+    inset 1px 1px grey,
+    inset -2px -2px #fff,
+    inset 2px 2px #0a0a0a;
+  padding: 2px;
+  background: #fff;
+}
+#comic-scroll {
+  flex: 1;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  background: white;
+}
+#comic-canvas {
+  display: block;
+}
+
+#side-pane {
+  flex: 0 0 148px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#self-pane {
+  flex: 0 0 130px;
+}
+#wheel-pane {
+  flex: 0 0 130px;
+}
+
+#member-pane {
+  flex: 1 1 40%;
+  min-height: 60px;
+  overflow-y: auto;
+  background: white;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: max-content; /* rows must never compress (scroll instead) */
+  align-content: start;
+  padding: 4px 0;
+}
+.member-cell {
+  text-align: center;
+  padding: 4px 2px 6px;
+  font-size: 11px;
+  overflow: hidden;
+}
+.member-cell img {
+  width: 32px;
+  height: 32px;
+  display: block;
+  margin: 0 auto 2px;
+}
+.member-cell .member-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.member-cell.selected {
+  background: navy;
+  color: white;
+}
+
+#self-pane {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    inset -1px -1px #dfdfdf,
+    inset 1px 1px grey,
+    inset -2px -2px #fff,
+    inset 2px 2px #0a0a0a;
+  background: white;
+  padding: 2px;
+}
+#self-canvas {
+  display: block;
+  background: white;
+}
+
+#wheel-pane {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    inset -1px -1px #dfdfdf,
+    inset 1px 1px grey,
+    inset -2px -2px #fff,
+    inset 2px 2px #0a0a0a;
+  background: silver;
+  padding: 2px;
+}
+#wheel-canvas {
+  display: block;
+  cursor: crosshair;
+}
+
+/* --- input bar -------------------------------------------------------- */
+
+#input-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 4px;
+  background: silver;
+}
+#input-field-wrap {
+  flex: 1;
+  display: flex;
+}
+#input-field {
+  flex: 1;
+  height: 21px;
+  font-family: 'Comic Sans MS', 'Comic Neue', cursive;
+  font-size: 12px;
+}
+#input-buttons {
+  display: flex;
+  gap: 1px;
+}
+#input-buttons button {
+  width: 24px;
+  height: 23px;
+  min-width: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- status bar ------------------------------------------------------- */
+
+#status-bar {
+  margin: 0 1px 1px;
+}
+#status-main {
+  flex: 1;
+}
+#status-room {
+  flex: 0 0 160px;
+}
+#status-users {
+  flex: 0 0 110px;
+}
+
+/* --- dialogs ----------------------------------------------------------- */
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dialog-overlay .window {
+  min-width: 320px;
+}
+.dialog-body {
+  padding: 10px;
+  font-size: 11px;
+}
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+.dialog-buttons button {
+  min-width: 75px;
+}
+
+.field-row-stacked {
+  margin-bottom: 8px;
+}
+fieldset {
+  margin-bottom: 8px;
+}
+
+/* Chat Connection dialog */
+.cd-body {
+  min-width: 430px;
+}
+.cd-body menu[role='tablist'] {
+  margin: 0 0 -2px 0;
+}
+.cd-body .tab-panel {
+  background: silver;
+  box-shadow:
+    inset -1px -1px #0a0a0a,
+    inset 1px 1px #fff,
+    inset -2px -2px grey,
+    inset 2px 2px #dfdfdf;
+  padding: 12px;
+  min-height: 300px;
+  box-sizing: border-box;
+}
+.cd-char-layout {
+  display: flex;
+  gap: 12px;
+}
+.cd-char-list-wrap,
+.cd-char-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cd-char-list-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.cd-char-list-wrap select {
+  width: 100%;
+  height: 224px; /* exact multiple of the 16px row height */
+  overflow-y: auto;
+}
+#cd-char-preview,
+#cd-bg-preview {
+  background: white;
+  box-shadow:
+    inset -1px -1px #dfdfdf,
+    inset 1px 1px grey,
+    inset -2px -2px #fff,
+    inset 2px 2px #0a0a0a;
+}
+.cd-copyright {
+  margin-top: 8px;
+  padding: 4px 6px;
+  background: silver;
+  box-shadow:
+    inset -1px -1px #fff,
+    inset 1px 1px grey;
+  font-size: 10px;
+  min-height: 14px;
+}
+
+/* --- splitters --------------------------------------------------------- */
+
+.splitter {
+  flex: 0 0 4px;
+  background: silver;
+}
+.splitter-v {
+  cursor: col-resize;
+}
+.splitter-h {
+  cursor: row-resize;
+}
+#split-main {
+  flex: 0 0 4px;
+}
+
+/* --- toolbar bars ------------------------------------------------------ */
+
+#toolbar .tb-grip {
+  width: 3px;
+  height: 20px;
+  margin: 0 3px 0 2px;
+  border-left: 1px solid #fff;
+  border-right: 1px solid grey;
+}
+#toolbar .tb-bargap {
+  width: 6px;
+}
+#toolbar .tb-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+#toolbar .tb-icon-disabled {
+  filter: grayscale(1) opacity(0.45);
+}
+#toolbar .tb-btn.tb-disabled:hover {
+  box-shadow: none;
+}
+#toolbar .tb-btn.active {
+  box-shadow:
+    inset -1px -1px #fff,
+    inset 1px 1px grey;
+  background: repeating-conic-gradient(#fff 0 25%, #dfdfdf 0 50%) 0 0/2px 2px;
+}
+
+/* --- menu polish -------------------------------------------------------- */
+
+.menu-popup .popup-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 20px 4px 24px;
+}
+.menu-popup .popup-label {
+  flex: 1;
+  white-space: nowrap;
+}
+.menu-popup .popup-accel {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.menu-popup .popup-subarrow {
+  position: absolute;
+  right: 6px;
+  font-size: 8px;
+}
+.menu-popup .popup-item.has-sub {
+  padding-right: 18px;
+  position: relative;
+}
+
+/* --- text view ---------------------------------------------------------- */
+
+#text-view {
+  flex: 1;
+  overflow-y: auto;
+  background: white;
+  font-size: 12px;
+  padding: 4px 6px;
+  font-family: 'MS Sans Serif', 'Pixelated MS Sans Serif', Arial, sans-serif;
+}
+#text-view .tv-line {
+  margin: 1px 0;
+}
+#text-view .tv-nick {
+  font-weight: bold;
+}
+#text-view .tv-action {
+  font-style: italic;
+}
+#text-view .tv-whisper {
+  color: #808080;
+  font-style: italic;
+}
+#text-view .tv-think {
+  color: #404040;
+}
+#text-view .tv-info {
+  color: #000080;
+}
+
+/* --- status window ------------------------------------------------------ */
+
+#status-window {
+  flex: 0 0 84px;
+  margin: 0 2px;
+  overflow-y: auto;
+  background: white;
+  font-size: 11px;
+  padding: 2px 4px;
+  font-family: 'MS Sans Serif', 'Pixelated MS Sans Serif', Arial, sans-serif;
+}
+#status-window .sw-line {
+  white-space: pre-wrap;
+}
+
+/* --- roster list mode ---------------------------------------------------- */
+
+#member-pane.list-mode {
+  display: block;
+  padding: 0;
+}
+#member-pane.list-mode .member-cell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  text-align: left;
+  padding: 1px 4px;
+}
+#member-pane.list-mode .member-cell img {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+/* --- listbox selects (98.css styles selects as dropdowns; restore native
+       listbox behavior for size/multiple selects) --------------------------- */
+
+select[multiple],
+select[size]:not([size='1']) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: none;
+  height: auto;
+  padding: 2px;
+  overflow-y: auto;
+}
+#ul-list {
+  height: 224px;
+}
+#fav-list {
+  height: 160px;
+}

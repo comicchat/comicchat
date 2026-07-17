@@ -1,0 +1,60 @@
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages-deploy
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check source
+        run: npm run check
+
+      - name: Build site
+        run: npm run build
+
+      - name: Publish to comicchat/comicchat.github.io
+        if: github.repository == 'comicchat/comicchat'
+        env:
+          DEPLOY_TOKEN: ${{ secrets.PAGES_DEPLOY_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_TOKEN}" ]; then
+            echo "::error::PAGES_DEPLOY_TOKEN is not configured."
+            exit 1
+          fi
+          git clone --quiet --depth 1 \
+            "https://x-access-token:${DEPLOY_TOKEN}@github.com/comicchat/comicchat.github.io.git" site
+          git -C site checkout -B main
+          rsync -a --delete --exclude .git/ dist/ site/
+          touch site/.nojekyll
+          git -C site config user.name "github-actions[bot]"
+          git -C site config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C site add -A
+          if git -C site diff --cached --quiet; then
+            echo "Deployment is already up to date."
+            exit 0
+          fi
+          git -C site commit -m "Deploy ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+          git -C site push origin HEAD:main

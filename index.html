@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Microsoft Chat 2.5 — Web</title>
+    <link rel="icon" href="/favicon.ico" />
+  </head>
+  <body>
+    <div id="desktop">
+      <div id="chat-window" class="window">
+        <div class="title-bar">
+          <div class="title-bar-caption">
+            <img class="title-bar-icon" src="/favicon.ico" alt="" aria-hidden="true" />
+            <div class="title-bar-text" id="title-text">Microsoft Chat - Not Connected</div>
+          </div>
+          <div class="title-bar-controls">
+            <button aria-label="Minimize"></button>
+            <button aria-label="Maximize"></button>
+            <button aria-label="Close"></button>
+          </div>
+        </div>
+        <div id="menu-bar"></div>
+        <div id="toolbar"></div>
+        <div class="window-body" id="main-body">
+          <div id="comic-pane">
+            <div id="comic-scroll">
+              <canvas id="comic-canvas" width="800" height="600"></canvas>
+            </div>
+            <div id="text-view" hidden></div>
+          </div>
+          <div id="split-main" class="splitter"></div>
+          <div id="side-pane">
+            <div id="member-pane" class="sunken-panel"></div>
+            <div id="split-member" class="splitter"></div>
+            <div id="self-pane">
+              <canvas id="self-canvas" width="120" height="120"></canvas>
+            </div>
+            <div id="split-self" class="splitter"></div>
+            <div id="wheel-pane">
+              <canvas id="wheel-canvas" width="120" height="120"></canvas>
+            </div>
+          </div>
+        </div>
+        <div id="split-status" class="splitter" hidden></div>
+        <div id="status-window" class="sunken-panel" hidden></div>
+        <div id="input-bar">
+          <div id="input-field-wrap">
+            <input id="input-field" type="text" maxlength="400" autocomplete="off" />
+          </div>
+          <div id="input-buttons"></div>
+        </div>
+        <div id="status-bar" class="status-bar">
+          <p class="status-bar-field" id="status-main">Not connected</p>
+          <p class="status-bar-field" id="status-room"></p>
+          <p class="status-bar-field" id="status-users"></p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
