@@ -9,6 +9,7 @@ export default tseslint.config(
       'node_modules/**',
       'public/art/**',
       'public/ui/**',
+      // Original Microsoft C/C++ source submodule, outside this JS/TS project.
       'sources/**',
       'src/irc/gamja/**',
       'vendor/**',

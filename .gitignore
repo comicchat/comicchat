@@ -2,9 +2,6 @@
 node_modules/
 dist/
 
-# Microsoft Comic Chat original sources (clone of microsoft/comic-chat)
-sources/
-
 # reference clones (gamja's needed files are vendored in src/irc/gamja)
 vendor/
 
