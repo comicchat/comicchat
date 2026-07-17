@@ -12,7 +12,7 @@ export function subtractAngles(a1: number, a2: number): number {
   let v = a1 - a2;
   if (v > -Math.PI && v <= Math.PI) return v;
   v = v % (2 * Math.PI);
-  if (v < 0) v += 2 * Math.PI;    // C fmod keeps sign; emulate lisp mod
+  if (v < 0) v += 2 * Math.PI; // C fmod keeps sign; emulate lisp mod
   return v <= Math.PI ? v : v - 2 * Math.PI;
 }
 
@@ -54,7 +54,7 @@ export class EmotionOpts {
 
 /** A chosen body: indices into the face/torso (or body) record arrays. */
 export interface ChosenBody {
-  faceIndex: number;  // complex only (-1 for simple)
+  faceIndex: number; // complex only (-1 for simple)
   torsoIndex: number; // complex: torso index; simple: body index
 }
 
@@ -74,7 +74,9 @@ export class AvatarState {
     this.body = this.neutralBody();
   }
 
-  get isComplex() { return this.char.isComplex; }
+  get isComplex() {
+    return this.char.isComplex;
+  }
 
   private recEmotion(rec: { emotionIndex: number }): number {
     return EMOTION_FLOATS[rec.emotionIndex] ?? 0;
@@ -88,8 +90,12 @@ export class AvatarState {
   }
 
   private findNeutral(kind: 'face' | 'torso' | 'body'): number {
-    const recs = kind === 'face' ? this.char.meta.faces
-      : kind === 'torso' ? this.char.meta.torsos : this.char.meta.bodies;
+    const recs =
+      kind === 'face'
+        ? this.char.meta.faces
+        : kind === 'torso'
+          ? this.char.meta.torsos
+          : this.char.meta.bodies;
     const last = kind === 'face' ? this.lastFace : this.lastTorso;
     const n = recs.length;
     if (n === 0) return -1;
@@ -103,7 +109,8 @@ export class AvatarState {
 
   /** CAvatarComplex::GetHeadAndBodyFromEmotion / CAvatarSimple::GetBodyIndexFromEmotion */
   headAndBodyFromEmotion(em: Emotion): { fIndex: number; tIndex: number } {
-    let fIndex = -1, tIndex = -1;
+    let fIndex = -1,
+      tIndex = -1;
     if (this.isComplex) {
       if (em.emotion <= 2 * Math.PI) {
         let nearestAngle = 3 * Math.PI;
@@ -122,7 +129,10 @@ export class AvatarState {
       } else {
         const torsos = this.char.meta.torsos;
         for (let i = 0; i < torsos.length; i++) {
-          if (em.emotion === this.recEmotion(torsos[i])) { tIndex = i; break; }
+          if (em.emotion === this.recEmotion(torsos[i])) {
+            tIndex = i;
+            break;
+          }
         }
       }
     } else {
@@ -142,7 +152,10 @@ export class AvatarState {
         }
       } else {
         for (let i = 0; i < bodies.length; i++) {
-          if (em.emotion === this.recEmotion(bodies[i])) { tIndex = i; break; }
+          if (em.emotion === this.recEmotion(bodies[i])) {
+            tIndex = i;
+            break;
+          }
         }
       }
     }
@@ -152,9 +165,11 @@ export class AvatarState {
   /** CAvatarX::GetBodyFromEmotion(CEmotionOpts&) — fill face/torso by priority. */
   bodyFromEmotionOpts(emOpts: EmotionOpts): ChosenBody {
     const opts = emOpts.opts.map((o) => ({ ...o }));
-    let foundF = -1, foundT = -1;
+    let foundF = -1,
+      foundT = -1;
     while (true) {
-      let minPriority = 0, bestIndex = -1;
+      let minPriority = 0,
+        bestIndex = -1;
       for (let i = 0; i < opts.length; i++) {
         if (opts[i].priority > minPriority) {
           bestIndex = i;
@@ -212,8 +227,10 @@ export class AvatarState {
           const recEm = this.recEmotion(torsos[index]);
           if (recEm > 7) continue; // skip gestures
           const thisAngle = Math.abs(subtractAngles(recEm, em.emotion));
-          if (thisAngle < Math.PI / NEMOTIONS ||
-              (recEm === EM.NEUTRAL && torsos[index].intensity === 0)) {
+          if (
+            thisAngle < Math.PI / NEMOTIONS ||
+            (recEm === EM.NEUTRAL && torsos[index].intensity === 0)
+          ) {
             const deltaI = Math.abs(em.intensity - torsos[index].intensity);
             if (deltaI < intensityOfNearest) {
               intensityOfNearest = deltaI;
@@ -236,11 +253,13 @@ export class AvatarState {
       const recEm = this.recEmotion(bodies[index]);
       if (recEm > 7) continue;
       const thisAngle = Math.abs(subtractAngles(recEm, em.emotion));
-      const isFirstNeutral = recEm === EM.NEUTRAL && bodies[index].intensity === 0 && nearestI === -1;
+      const isFirstNeutral =
+        recEm === EM.NEUTRAL && bodies[index].intensity === 0 && nearestI === -1;
       if (thisAngle < Math.PI / NEMOTIONS || isFirstNeutral) {
-        const deltaI = isFirstNeutral && em.intensity > 0
-          ? 1.5
-          : Math.abs(em.intensity - bodies[index].intensity);
+        const deltaI =
+          isFirstNeutral && em.intensity > 0
+            ? 1.5
+            : Math.abs(em.intensity - bodies[index].intensity);
         if (deltaI < intensityOfNearest) {
           intensityOfNearest = deltaI;
           nearestI = index;
@@ -293,11 +312,14 @@ export class AvatarState {
       const t = this.headAndBodyPublic(torso);
       this.body = {
         faceIndex: f.fIndex >= 0 ? f.fIndex : this.findNeutral('face'),
-        torsoIndex: t.tIndex >= 0 ? t.tIndex : (f.tIndex >= 0 ? f.tIndex : this.findNeutral('torso')),
+        torsoIndex: t.tIndex >= 0 ? t.tIndex : f.tIndex >= 0 ? f.tIndex : this.findNeutral('torso'),
       };
     } else {
       const t = this.headAndBodyPublic(torso);
-      this.body = { faceIndex: -1, torsoIndex: t.tIndex >= 0 ? t.tIndex : this.findNeutral('body') };
+      this.body = {
+        faceIndex: -1,
+        torsoIndex: t.tIndex >= 0 ? t.tIndex : this.findNeutral('body'),
+      };
     }
   }
 
@@ -358,7 +380,11 @@ export function computeBodyGeometrySync(
     if (flip) faceX = width - faceX;
 
     return {
-      width, height, headHeight, faceX, faceY,
+      width,
+      height,
+      headHeight,
+      faceX,
+      faceY,
       headPos: { x: xOffset - left, y: yOffset - top },
       torsoPos: { x: -left, y: -top },
       headPose: head,
@@ -389,9 +415,9 @@ export function computeBodyGeometrySync(
 export interface BodyGeometry {
   width: number;
   height: number;
-  headHeight: number;       // bottom edge of the head within the composite
-  faceX: number;            // face center x within the composite (after flip)
-  faceY: number;            // face center y within the composite
+  headHeight: number; // bottom edge of the head within the composite
+  faceX: number; // face center x within the composite (after flip)
+  faceY: number; // face center y within the composite
   // draw positions (y-down, relative to composite top-left):
   headPos: { x: number; y: number } | null;
   torsoPos: { x: number; y: number };
@@ -431,8 +457,11 @@ export async function computeBodyGeometry(
     if (flip) faceX = width - faceX;
 
     return {
-      width, height, headHeight,
-      faceX, faceY,
+      width,
+      height,
+      headHeight,
+      faceX,
+      faceY,
       headPos: { x: xOffset - left, y: yOffset - top },
       torsoPos: { x: -left, y: -top },
       headPose: head,
@@ -470,6 +499,7 @@ export function drawBody(
   scale: number,
   flip: boolean,
   torsoFirst = true,
+  drawNimbus = true,
 ) {
   ctx.save();
   ctx.translate(x, y);
@@ -478,11 +508,27 @@ export function drawBody(
     ctx.translate(geo.width, 0);
     ctx.scale(-1, 1);
   }
+  const drawTorsoAura = () => {
+    if (geo.torsoPose.aura) ctx.drawImage(geo.torsoPose.aura, geo.torsoPos.x, geo.torsoPos.y);
+  };
+  const drawHeadAura = () => {
+    if (geo.headPose?.aura && geo.headPos)
+      ctx.drawImage(geo.headPose.aura, geo.headPos.x, geo.headPos.y);
+  };
   const drawTorso = () => ctx.drawImage(geo.torsoPose.img, geo.torsoPos.x, geo.torsoPos.y);
   const drawHead = () => {
     if (geo.headPose && geo.headPos) ctx.drawImage(geo.headPose.img, geo.headPos.x, geo.headPos.y);
   };
-  if (torsoFirst) { drawTorso(); drawHead(); }
-  else { drawHead(); drawTorso(); }
+  if (drawNimbus) {
+    drawTorsoAura();
+    drawHeadAura();
+  }
+  if (torsoFirst) {
+    drawTorso();
+    drawHead();
+  } else {
+    drawHead();
+    drawTorso();
+  }
   ctx.restore();
 }

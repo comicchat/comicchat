@@ -209,6 +209,8 @@ export function showConnectDialog(
             (preview.height - geo.height * scale) / 2,
             scale,
             false,
+            true,
+            false,
           );
         }
         copyright.textContent = char.meta.copyright?.replace(/\\n/g, ' — ') ?? '';

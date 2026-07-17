@@ -66,9 +66,13 @@ export interface FontInfo {
   sizeTwips: number;
   italic: boolean;
   family: string;
-  lineHeight: number; // twips: tmHeight + leading
+  tmHeight: number;
+  externalLeading: number;
+  lineHeight: number; // twips: tmHeight + leading + tmExternalLeading
   topOffset: number; // twips
   baseAdd: number; // twips
+  baselineOffset: number; // twips from line top to alphabetic baseline
+  underlineOffsetPx: number;
 }
 
 let measureCanvas: OffscreenCanvas | HTMLCanvasElement | null = null;
@@ -85,6 +89,24 @@ function ctx2d() {
   return measureCtx!;
 }
 
+function measuredLineBoxPx(cssFont: string): number | null {
+  if (typeof document === 'undefined' || !document.body) return null;
+  const el = document.createElement('div');
+  el.textContent = 'Mg';
+  el.style.position = 'absolute';
+  el.style.visibility = 'hidden';
+  el.style.whiteSpace = 'nowrap';
+  el.style.margin = '0';
+  el.style.border = '0';
+  el.style.padding = '0';
+  el.style.font = cssFont;
+  el.style.lineHeight = 'normal';
+  document.body.appendChild(el);
+  const height = el.getBoundingClientRect().height;
+  el.remove();
+  return height > 0 ? height : null;
+}
+
 export function makeFontInfo(
   sizeTwips: number,
   italic: boolean,
@@ -94,24 +116,45 @@ export function makeFontInfo(
   const cssFont = `${italic ? 'italic ' : ''}${px}px ${family}`;
   const c = ctx2d();
   c.font = cssFont;
-  const m = c.measureText('Mg');
-  const tmHeightPx =
-    (m.fontBoundingBoxAscent ?? px * 0.8) + (m.fontBoundingBoxDescent ?? px * 0.25);
+  const m = c.measureText('Mg') as TextMetrics & {
+    emHeightAscent?: number;
+    emHeightDescent?: number;
+  };
+  let ascentPx = m.fontBoundingBoxAscent ?? m.emHeightAscent ?? m.actualBoundingBoxAscent;
+  let descentPx = m.fontBoundingBoxDescent ?? m.emHeightDescent ?? m.actualBoundingBoxDescent;
+  let tmHeightPx = ascentPx !== undefined && descentPx !== undefined ? ascentPx + descentPx : 0;
+  const lineBoxPx = measuredLineBoxPx(cssFont);
+  if (tmHeightPx <= 0) {
+    tmHeightPx = lineBoxPx ?? px;
+    ascentPx = m.actualBoundingBoxAscent || tmHeightPx;
+    descentPx = Math.max(0, tmHeightPx - ascentPx);
+  }
+  const externalLeadingPx = Math.max(0, (lineBoxPx ?? tmHeightPx) - tmHeightPx);
   const tmHeight = Math.round(tmHeightPx * TWIPS_PER_PX);
+  const externalLeading = Math.round(externalLeadingPx * TWIPS_PER_PX);
   // fonts.cpp: the Comic Sans vertical kerning (leading -40, baseAdd +30,
   // scaled by size/180) applies only to Comic Sans, like doVKern.
   const isComic = /comic sans/i.test(family);
   const reduction = sizeTwips / BALLOON_FONT_TWIPS;
   const leading = isComic ? Math.round(-40 * reduction) : 0;
   const baseAdd = isComic ? Math.round(30 * reduction) : 0;
+  const lineHeight = Math.max(1, tmHeight + leading + externalLeading);
+  const ascent = Math.round((ascentPx ?? tmHeightPx) * TWIPS_PER_PX);
+  const descent = Math.round((descentPx ?? 0) * TWIPS_PER_PX);
+  const baselineOffset = Math.round((lineHeight - ascent - descent) / 2 + ascent);
+  const underlineOffsetPx = Math.max(1, Math.round((descent / TWIPS_PER_PX) * 0.5));
   return {
     cssFont,
     sizeTwips,
     italic,
     family,
-    lineHeight: tmHeight + leading,
-    topOffset: 0,
+    tmHeight,
+    externalLeading,
+    lineHeight,
+    topOffset: Math.round(externalLeading / 2),
     baseAdd,
+    baselineOffset,
+    underlineOffsetPx,
   };
 }
 
@@ -436,12 +479,10 @@ export class Balloon {
   areaEstimate(): { area: number; len: number; lineHeight: number } {
     let len = 0;
     for (const s of this.segments) len += styledWidthTwips(this.font, { text: s.text, fmt: s.fmt });
-    const tmHeight =
-      this.font.lineHeight - Math.round(-40 * (this.font.sizeTwips / BALLOON_FONT_TWIPS));
     return {
       len,
       lineHeight: this.font.lineHeight,
-      area: Math.floor(1.3 * len * (tmHeight + this.font.lineHeight)),
+      area: Math.floor(1.3 * len * (this.font.tmHeight + this.font.lineHeight)),
     };
   }
 
@@ -805,15 +846,15 @@ export class Balloon {
 
   private drawText(ctx: CanvasRenderingContext2D, toCanvas: (p: Pt) => [number, number]) {
     if (!this.fInfo) return;
-    ctx.textBaseline = 'top';
+    ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
     const lineH = this.font.lineHeight;
-    // Glyph ink sits high in the CSS font box compared to GDI's cell; nudge
-    // the text down to center it in the balloon (75 twips ≈ 5px).
-    const NUDGE = 50;
     for (let i = 0; i < this.fInfo.nLines; i++) {
       const line = this.fInfo.lines[i];
-      const position = toCanvas({ x: this.fInfo.leftX[i], y: -i * lineH - NUDGE });
+      const position = toCanvas({
+        x: this.fInfo.leftX[i],
+        y: -i * lineH - this.font.baselineOffset,
+      });
       let x = position[0];
       const y = position[1];
       for (const chunk of line.chunks) {
@@ -823,7 +864,7 @@ export class Balloon {
         ctx.fillText(text, x, y);
         const w = ctx.measureText(text).width;
         if (chunk.fmt.underline) {
-          const uy = y + this.font.sizeTwips / TWIPS_PER_PX + 1;
+          const uy = y + this.font.underlineOffsetPx;
           ctx.strokeStyle = ctx.fillStyle as string;
           ctx.lineWidth = 1;
           ctx.beginPath();

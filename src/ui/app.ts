@@ -832,7 +832,7 @@ export class App {
     this.session?.disconnect();
     this.session = null;
     this.room.clear();
-    this.page.panels = [];
+    this.page.clear();
     this.transcript = [];
     this.renderTextView();
     this.queueRender();
@@ -865,7 +865,7 @@ export class App {
         const prev = this.lastJoinedChannel;
         if (prev && prev !== ev.channel) {
           this.room.clear();
-          this.page.panels = [];
+          this.page.clear();
           this.transcript = [];
           this.renderTextView();
         }
@@ -1408,7 +1408,7 @@ export class App {
   }
 
   private clearHistory() {
-    this.page.panels = [];
+    this.page.clear();
     this.transcript = [];
     this.renderTextView();
     this.queueRender();
@@ -1480,7 +1480,7 @@ export class App {
     const scale = Math.min(canvas.width / geo.width, canvas.height / geo.height) * 0.95;
     const x = (canvas.width - geo.width * scale) / 2;
     const y = (canvas.height - geo.height * scale) / 2;
-    drawBody(ctx, geo, x, y, scale, false);
+    drawBody(ctx, geo, x, y, scale, false, true, false);
   }
 
   renderRoster() {

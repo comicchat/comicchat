@@ -2,13 +2,18 @@
 // page geometry (pageview.cpp) and canvas rendering.
 
 import type { ArtStore } from '../art/store';
-import { computeBodyGeometrySync, type AvatarState } from './avatar';
+import { computeBodyGeometrySync, drawBody, AvatarState, type ChosenBody } from './avatar';
 import { Balloon, makeFontInfo, type BalloonType, type FontInfo } from './balloon';
 import type { TextSegment } from './richtext';
 import { Panel, type Hysteresis, type PanelContext } from './panel';
 import {
-  INTERSTICE, MIN_UNIT_PANEL_WIDTH, PANEL_BORDER_WIDTH, TWIPS_PER_PX,
-  BALLOON_FONT_TWIPS, MAX_PANEL_BALLOONS, MAX_PANEL_BODIES,
+  INTERSTICE,
+  MIN_UNIT_PANEL_WIDTH,
+  PANEL_BORDER_WIDTH,
+  TWIPS_PER_PX,
+  BALLOON_FONT_TWIPS,
+  MAX_PANEL_BALLOONS,
+  MAX_PANEL_BODIES,
 } from './twips';
 
 export interface PageMember {
@@ -17,6 +22,42 @@ export interface PageMember {
   avatar: AvatarState;
   talkTos: string[];
 }
+
+interface AvatarSnapshot {
+  avatar: AvatarState;
+  body: ChosenBody;
+  lastFace: number;
+  lastTorso: number;
+  flip: boolean;
+  frozen: boolean;
+}
+
+interface MemberSnapshot {
+  key: string;
+  nick: string;
+  talkTos: string[];
+  avatar: AvatarSnapshot;
+}
+
+interface LineHistoryEntry {
+  kind: 'line';
+  memberKey: string;
+  text: string | TextSegment[];
+  balloonType: BalloonType;
+  backgroundId: string | null;
+  members: MemberSnapshot[];
+}
+
+interface ReactionHistoryEntry {
+  kind: 'reaction';
+  memberKey: string;
+  backgroundId: string | null;
+  members: MemberSnapshot[];
+}
+
+type PageHistoryEntry = LineHistoryEntry | ReactionHistoryEntry;
+
+const MAX_PAGE_HISTORY = 250;
 
 export class Page {
   art: ArtStore;
@@ -27,6 +68,7 @@ export class Page {
   private newPanelFlag = false;
   private hysteresis = new Map<string, Hysteresis>();
   private members = new Map<string, PageMember>();
+  private history: PageHistoryEntry[] = [];
   fontNormal: FontInfo;
   fontWhisper: FontInfo;
   onLayout: () => void = () => {};
@@ -43,6 +85,81 @@ export class Page {
 
   removeMember(key: string) {
     this.members.delete(key);
+  }
+
+  clear() {
+    this.panels = [];
+    this.history = [];
+    this.hysteresis = new Map();
+    this.newPanelFlag = false;
+  }
+
+  private cloneText(text: string | TextSegment[]): string | TextSegment[] {
+    return typeof text === 'string' ? text : text.map((s) => ({ text: s.text, fmt: { ...s.fmt } }));
+  }
+
+  private snapshotMembers(): MemberSnapshot[] {
+    return [...this.members.entries()].map(([key, m]) => ({
+      key,
+      nick: m.nick,
+      talkTos: [...m.talkTos],
+      avatar: {
+        avatar: m.avatar,
+        body: { ...m.avatar.body },
+        lastFace: m.avatar.lastFace,
+        lastTorso: m.avatar.lastTorso,
+        flip: m.avatar.flip,
+        frozen: m.avatar.frozen,
+      },
+    }));
+  }
+
+  private restoreMembers(snapshots: MemberSnapshot[]): Map<string, PageMember> {
+    const restored = new Map<string, PageMember>();
+    for (const m of snapshots) {
+      const avatar = new AvatarState(m.avatar.avatar.char);
+      avatar.body = { ...m.avatar.body };
+      avatar.lastFace = m.avatar.lastFace;
+      avatar.lastTorso = m.avatar.lastTorso;
+      avatar.flip = m.avatar.flip;
+      avatar.frozen = m.avatar.frozen;
+      restored.set(m.key, {
+        key: m.key,
+        nick: m.nick,
+        avatar,
+        talkTos: [...m.talkTos],
+      });
+    }
+    return restored;
+  }
+
+  private trimHistory(): boolean {
+    const overflow = this.history.length - MAX_PAGE_HISTORY;
+    if (overflow <= 0) return false;
+    this.history.splice(0, overflow);
+    return true;
+  }
+
+  private replayHistory() {
+    if (this.history.length === 0) return;
+    const liveMembers = this.members;
+    const liveBackgroundId = this.backgroundId;
+    const liveNewPanelFlag = this.newPanelFlag;
+    this.panels = [];
+    this.hysteresis = new Map();
+    this.newPanelFlag = false;
+    for (const entry of this.history) {
+      this.members = this.restoreMembers(entry.members);
+      this.backgroundId = entry.backgroundId;
+      if (entry.kind === 'line') {
+        this.addLineInternal(entry.memberKey, this.cloneText(entry.text), entry.balloonType, false);
+      } else {
+        this.addReactionInternal(entry.memberKey, false);
+      }
+    }
+    this.members = liveMembers;
+    this.backgroundId = liveBackgroundId;
+    this.newPanelFlag = liveNewPanelFlag;
   }
 
   private ctx(): PanelContext {
@@ -65,19 +182,27 @@ export class Page {
 
   /** pageview.cpp GetProspectivePanelWidth: square panels sized so
    *  panelsPerRow fit the view width exactly (gutters between panels only). */
-  setViewWidth(viewWidthPx: number, viewHeightPx: number) {
+  setViewWidth(viewWidthPx: number, viewHeightPx: number): boolean {
     const xWidth = Math.ceil(viewWidthPx * TWIPS_PER_PX);
     let goal = Math.floor((xWidth + INTERSTICE * (1 - this.panelsPerRow)) / this.panelsPerRow);
     const yHeight = Math.ceil(viewHeightPx * TWIPS_PER_PX);
     const nHigh = Math.max(1, Math.ceil((yHeight + INTERSTICE) / (goal + INTERSTICE)));
     const goalPanelHeight = Math.floor((yHeight + INTERSTICE * (1 - nHigh)) / nHigh);
     goal = Math.min(goal, goalPanelHeight);
-    this.unitWidth = Math.max(goal, MIN_UNIT_PANEL_WIDTH);
+    const nextUnitWidth = Math.max(goal, MIN_UNIT_PANEL_WIDTH);
+    if (nextUnitWidth === this.unitWidth) return false;
+    this.unitWidth = nextUnitWidth;
+    this.replayHistory();
+    if (this.panels.length > 0) this.onLayout();
+    return true;
   }
 
   setPanelsPerRow(n: number, viewWidthPx: number, viewHeightPx: number) {
-    this.panelsPerRow = Math.max(1, n);
-    this.setViewWidth(viewWidthPx, viewHeightPx);
+    const nextPanelsPerRow = Math.max(1, n);
+    const changed = nextPanelsPerRow !== this.panelsPerRow;
+    this.panelsPerRow = nextPanelsPerRow;
+    const resized = this.setViewWidth(viewWidthPx, viewHeightPx);
+    if (changed && !resized) this.onLayout();
   }
 
   startNewPanel() {
@@ -94,6 +219,30 @@ export class Page {
   addLine(memberKey: string, text: string | TextSegment[], kind: BalloonType) {
     const member = this.members.get(memberKey);
     if (!member) return;
+    this.history.push({
+      kind: 'line',
+      memberKey,
+      text: this.cloneText(text),
+      balloonType: kind,
+      backgroundId: this.backgroundId,
+      members: this.snapshotMembers(),
+    });
+    const pruned = this.trimHistory();
+    this.addLineInternal(memberKey, text, kind, !pruned);
+    if (pruned) {
+      this.replayHistory();
+      this.onLayout();
+    }
+  }
+
+  private addLineInternal(
+    memberKey: string,
+    text: string | TextSegment[],
+    kind: BalloonType,
+    emitLayout: boolean,
+  ) {
+    const member = this.members.get(memberKey);
+    if (!member) return;
 
     if (kind === 'box' || kind === 'whisperbox') this.startNewPanel();
 
@@ -103,7 +252,8 @@ export class Page {
     let replaceLast = false;
 
     if (
-      this.newPanelFlag || !last ||
+      this.newPanelFlag ||
+      !last ||
       last.balloons.length >= MAX_PANEL_BALLOONS ||
       this.panels.length < 2 ||
       last.hasMember(memberKey)
@@ -135,7 +285,7 @@ export class Page {
     if (!panel.layoutBalloons(ctx)) {
       // didn't fit: leave the old panel alone, start fresh with this line
       this.startNewPanel();
-      this.addLine(memberKey, text, kind);
+      this.addLineInternal(memberKey, text, kind, emitLayout);
       return;
     }
 
@@ -150,21 +300,43 @@ export class Page {
     const rest = panel.balloons[panel.balloons.length - 1].rest;
     if (rest) {
       this.startNewPanel();
-      this.addLine(memberKey, rest, kind);
+      this.addLineInternal(memberKey, rest, kind, emitLayout);
       return;
     }
 
-    this.onLayout();
+    if (emitLayout) this.onLayout();
   }
 
   /** CUnitPanelPage::AddReaction — pose change without text (<Chr>). */
   addReaction(memberKey: string) {
     const member = this.members.get(memberKey);
     if (!member) return;
+    this.history.push({
+      kind: 'reaction',
+      memberKey,
+      backgroundId: this.backgroundId,
+      members: this.snapshotMembers(),
+    });
+    const pruned = this.trimHistory();
+    this.addReactionInternal(memberKey, !pruned);
+    if (pruned) {
+      this.replayHistory();
+      this.onLayout();
+    }
+  }
+
+  private addReactionInternal(memberKey: string, emitLayout: boolean) {
+    const member = this.members.get(memberKey);
+    if (!member) return;
     const last = this.panels[this.panels.length - 1] as Panel | undefined;
     let panel: Panel;
     let replaceLast = false;
-    if (this.newPanelFlag || !last || last.bodies.length >= MAX_PANEL_BODIES || this.panels.length < 2) {
+    if (
+      this.newPanelFlag ||
+      !last ||
+      last.bodies.length >= MAX_PANEL_BODIES ||
+      this.panels.length < 2
+    ) {
       panel = new Panel(this.backgroundId);
       this.newPanelFlag = false;
     } else {
@@ -176,12 +348,12 @@ export class Page {
     panel.layoutAvatars(ctx, this.establishing(false));
     if (!panel.layoutBalloons(ctx)) {
       this.startNewPanel();
-      this.addReaction(memberKey);
+      this.addReactionInternal(memberKey, emitLayout);
       return;
     }
     if (replaceLast) this.panels.pop();
     this.panels.push(panel);
-    this.onLayout();
+    if (emitLayout) this.onLayout();
   }
 
   // -------------------------------------------------------------------------
@@ -211,7 +383,13 @@ export class Page {
     }
   }
 
-  private async renderPanel(g: CanvasRenderingContext2D, panel: Panel, px: number, py: number, unitPx: number) {
+  private async renderPanel(
+    g: CanvasRenderingContext2D,
+    panel: Panel,
+    px: number,
+    py: number,
+    unitPx: number,
+  ) {
     const scale = 1 / TWIPS_PER_PX; // twips → px
     // panel-space (x right, y up from top edge at 0) → canvas
     const toCanvas = (x: number, y: number): [number, number] => [px + x * scale, py - y * scale];
@@ -231,7 +409,8 @@ export class Page {
       if (bg && panel.backdropBox) {
         const b = panel.backdropBox;
         const unitW = this.unitWidth;
-        const bitW = bg.width, bitH = bg.height;
+        const bitW = bg.width,
+          bitH = bg.height;
         // fractions of panel → source pixels (y-up: top=delta, bottom=-logH+delta)
         const srcLeft = Math.round((b.left / unitW) * bitW);
         const srcRight = Math.round((b.right / unitW) * bitW);
@@ -252,17 +431,8 @@ export class Page {
       const geo = b.avatar ? computeBodyGeometrySync(b.avatar, b.body, b.flip) : null;
       if (!geo) continue;
       const [bx, byTop] = toCanvas(b.bbox.left, b.bbox.top);
-      const bodyScalePx = (b.bbox.top - b.bbox.bottom) / geo.height * scale;
-      g.save();
-      g.translate(bx, byTop);
-      g.scale(bodyScalePx, bodyScalePx);
-      if (b.flip) {
-        g.translate(geo.width, 0);
-        g.scale(-1, 1);
-      }
-      g.drawImage(geo.torsoPose.img, geo.torsoPos.x, geo.torsoPos.y);
-      if (geo.headPose && geo.headPos) g.drawImage(geo.headPose.img, geo.headPos.x, geo.headPos.y);
-      g.restore();
+      const bodyScalePx = ((b.bbox.top - b.bbox.bottom) / geo.height) * scale;
+      drawBody(g, geo, bx, byTop, bodyScalePx, b.flip);
     }
 
     // balloons: latest drawn first so earlier ones sit on top
