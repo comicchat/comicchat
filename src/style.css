@@ -348,9 +348,12 @@ fieldset {
   margin-bottom: 8px;
 }
 
-/* Chat Connection dialog */
+/* Chat Connection dialog — width tracks the original 252-dialog-unit pages
+   (~378px content). A fixed width keeps the welcome text wrapping instead of
+   stretching the whole dialog to its max-content line length. */
 .cd-body {
-  min-width: 430px;
+  width: 384px;
+  box-sizing: border-box;
 }
 .cd-body menu[role='tablist'] {
   margin: 0 0 -2px 0;
