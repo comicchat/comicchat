@@ -412,6 +412,27 @@ fieldset {
   min-height: 14px;
 }
 
+/* Options dialog */
+.opt-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+.opt-disabled,
+.opt-disabled-group legend,
+.opt-disabled-group p {
+  color: graytext;
+}
+
+/* Text View line-spacing options applied to the transcript (the gap class is
+   added per-line in renderTextView so "different message types" works). */
+#text-view .tv-line.tv-gap {
+  margin-top: 1em;
+}
+#text-view.tv-headers-sep .tv-nick {
+  display: block;
+}
+
 /* Connect / Personal Info tabs (mirror the original Setup property pages) */
 .cd-welcome {
   margin: 0 0 12px;

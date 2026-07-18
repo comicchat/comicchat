@@ -33,6 +33,7 @@ import type {
 import { ChatSession } from '../irc/session';
 import { CommandRegistry } from './commands';
 import {
+  loadOptions,
   loadPrefs,
   messageDialog,
   promptDialog,
@@ -40,11 +41,13 @@ import {
   showColorDialog,
   showConnectDialog,
   showFavoritesDialog,
+  showOptionsDialog,
   showRoomListDialog,
   showRoomPropertiesDialog,
   showUserListDialog,
   showWhisperBoxDialog,
   type FavoriteRoom,
+  type OptionsState,
 } from './dialogs';
 import { buildMenuBar, showContextMenu, type MenuDef, type MenuEntry } from './menus';
 import { initSplitter } from './splitters';
@@ -84,7 +87,8 @@ export class App {
   comicFontFamily = '"Comic Sans MS", "Comic Neue", cursive';
   statusWindowVisible = false;
   statusBarVisible = true;
-  soundsOff = false;
+  options: OptionsState = loadOptions();
+  soundsOff = !this.options.playSounds;
   away = false;
   transcript: TranscriptLine[] = [];
   private lastJoinedChannel = '';
@@ -273,6 +277,7 @@ export class App {
         id: 'ID_TURN_OFF_SOUNDS',
         run: () => {
           this.soundsOff = !this.soundsOff;
+          this.options.playSounds = !this.soundsOff;
         },
         checked: () => this.soundsOff,
       },
@@ -280,7 +285,7 @@ export class App {
         id: 'ID_VIEW_OPTIONS',
         prompt: 'Changes the options for Microsoft Chat.',
         tip: 'Options',
-        run: () => void this.connectFlow('character'),
+        run: () => void this.openOptions(),
       },
 
       // Room
@@ -832,6 +837,21 @@ export class App {
     this.refreshChrome();
   }
 
+  async openOptions(initialTab: 'personal' | 'settings' | 'textview' = 'personal') {
+    const opts = await showOptionsDialog(initialTab);
+    if (!opts) return;
+    this.options = opts;
+    this.applyOptions();
+  }
+
+  /** Apply the persisted Options to live state (sounds, text view, profile). */
+  private applyOptions() {
+    this.soundsOff = !this.options.playSounds;
+    if (this.session instanceof IrcSession) this.session.profile = this.options.profile;
+    this.renderTextView();
+    this.refreshChrome();
+  }
+
   disconnect() {
     this.session?.disconnect();
     this.session = null;
@@ -884,7 +904,7 @@ export class App {
         }
         break;
       case 'join':
-        this.addStatusLine(`${ev.nick} has joined the room.`);
+        if (this.options.showArrivals) this.addStatusLine(`${ev.nick} has joined the room.`);
         void this.registerMember(ev.nick);
         break;
       case 'part':
@@ -895,7 +915,7 @@ export class App {
           this.setTitle('Microsoft Chat - Connected');
           this.addStatusLine('You have left the room.');
         } else {
-          this.addStatusLine(`${ev.nick} has left the room.`);
+          if (this.options.showArrivals) this.addStatusLine(`${ev.nick} has left the room.`);
           this.room.removeMember(ev.nick);
           this.page.removeMember(ev.nick.toLowerCase());
         }
@@ -1161,11 +1181,21 @@ export class App {
   private renderTextView() {
     if (this.viewMode !== 'text') return;
     const tv = this.$('text-view');
+    tv.classList.toggle('tv-headers-sep', this.options.headersSeparate);
     tv.innerHTML = '';
+    const spacing = this.options.lineSpacing;
+    let prevKind: string | null = null;
     for (const line of this.transcript) {
       if (line.text === '<Chr>') continue; // like textview.cpp
       const div = document.createElement('div');
       div.className = 'tv-line';
+      if (
+        prevKind !== null &&
+        (spacing === 'all' || (spacing === 'different' && line.kind !== prevKind))
+      ) {
+        div.classList.add('tv-gap');
+      }
+      prevKind = line.kind;
       const nick = document.createElement('span');
       nick.className = 'tv-nick';
       switch (line.kind) {

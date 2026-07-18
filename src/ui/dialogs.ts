@@ -375,6 +375,247 @@ export function showAboutDialog() {
 }
 
 // ---------------------------------------------------------------------------
+// Options dialog (mirrors IDD_SETTINGSPAGE / IDD_PERSONALPAGE_IRC /
+// IDD_TEXTFONTPAGE_IRC — the "Microsoft Chat Options" property sheet)
+
+export type LineSpacing = 'all' | 'different' | 'none';
+
+export interface OptionsState {
+  // Personal Info (shared with the connect prefs)
+  realname: string;
+  nick: string;
+  email: string;
+  homepage: string;
+  profile: string;
+  // Settings
+  dontSendComicData: boolean;
+  allowWhispers: boolean;
+  playSounds: boolean;
+  showArrivals: boolean;
+  getIdentityOnArrival: boolean;
+  appearInUserLists: boolean;
+  receiveInvitations: boolean;
+  receiveFileTransfers: boolean;
+  receiveNetMeeting: boolean;
+  promptSaveOnExit: boolean;
+  soundPath: string;
+  // Text View
+  lineSpacing: LineSpacing;
+  headersSeparate: boolean;
+  hostHeadersBold: boolean;
+  hostMessagesBold: boolean;
+}
+
+const OPTIONS_KEY = 'comicchat-options';
+
+const DEFAULT_OPTIONS: Omit<OptionsState, 'realname' | 'nick' | 'email' | 'homepage' | 'profile'> =
+  {
+    dontSendComicData: false,
+    allowWhispers: true,
+    playSounds: true,
+    showArrivals: true,
+    getIdentityOnArrival: true,
+    appearInUserLists: true,
+    receiveInvitations: true,
+    receiveFileTransfers: true,
+    receiveNetMeeting: true,
+    promptSaveOnExit: false,
+    soundPath: 'C:\\windows\\media',
+    lineSpacing: 'all',
+    headersSeparate: true,
+    hostHeadersBold: true,
+    hostMessagesBold: true,
+  };
+
+export function loadOptions(): OptionsState {
+  const p = loadPrefs();
+  let saved: Partial<OptionsState> = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? '{}');
+  } catch {
+    /* ignore */
+  }
+  return {
+    ...DEFAULT_OPTIONS,
+    realname: p.realname ?? 'Comic Chat Web user',
+    nick: p.nick ?? 'WebGuest',
+    email: p.email ?? '',
+    homepage: p.homepage ?? '',
+    profile: p.profile ?? 'This person is too lazy to create a profile entry.',
+    ...saved,
+  };
+}
+
+export function showOptionsDialog(
+  initialTab: 'personal' | 'settings' | 'textview' = 'personal',
+): Promise<OptionsState | null> {
+  return new Promise((resolve) => {
+    const cur = loadOptions();
+    const { body, buttons, close } = dialogFrame('Microsoft Chat Options');
+    body.classList.add('cd-body', 'opt-body');
+    const chk = (id: string, label: string, checked: boolean, disabled = false) =>
+      `<div class="field-row"><input type="checkbox" id="${id}"${checked ? ' checked' : ''}${
+        disabled ? ' disabled' : ''
+      }><label for="${id}"${disabled ? ' class="opt-disabled"' : ''}>${label}</label></div>`;
+
+    body.innerHTML = `
+      <menu role="tablist">
+        <li role="tab" data-tab="personal"><a href="#">Personal Info</a></li>
+        <li role="tab" data-tab="settings"><a href="#">Settings</a></li>
+        <li role="tab" data-tab="textview"><a href="#">Text View</a></li>
+      </menu>
+      <div class="tab-panel" data-panel="personal">
+        <div class="field-row-stacked"><label for="opt-realname">Real name:</label>
+          <input id="opt-realname" type="text" maxlength="60"></div>
+        <div class="field-row-stacked"><label for="opt-nick">Nickname:</label>
+          <input id="opt-nick" type="text" maxlength="32"></div>
+        <div class="field-row-stacked"><label for="opt-email">Email address:</label>
+          <input id="opt-email" type="text"></div>
+        <div class="field-row-stacked"><label for="opt-homepage">WWW Home Page:</label>
+          <input id="opt-homepage" type="text"></div>
+        <div class="field-row-stacked"><label for="opt-profile">Brief description of yourself:</label>
+          <textarea id="opt-profile" rows="3"></textarea></div>
+      </div>
+      <div class="tab-panel" data-panel="settings" hidden>
+        <fieldset>
+          <legend>Connection</legend>
+          <p style="margin:0 0 6px">If you are speaking mostly to people who are not using Microsoft Chat, check the box below:</p>
+          ${chk('opt-dontsend', "Don't send Microsoft Chat specific information", cur.dontSendComicData)}
+        </fieldset>
+        <fieldset class="opt-disabled-group">
+          <legend>Content Advisor</legend>
+          <p style="margin:0 0 6px" class="opt-disabled">Ratings help you control what kind of Internet content the users of your computer are allowed to view.</p>
+          <div class="field-row" style="justify-content:flex-end;gap:6px">
+            <button disabled>Enable Ratings...</button><button disabled>Settings...</button>
+          </div>
+        </fieldset>
+        <div class="opt-two-col">
+          <div>
+            ${chk('opt-whispers', 'Allow whispers', cur.allowWhispers)}
+            ${chk('opt-playsounds', 'Play sounds', cur.playSounds)}
+            ${chk('opt-arrivals', 'Show arrivals/departures', cur.showArrivals)}
+            ${chk('opt-identity', 'Get identity on arrival', cur.getIdentityOnArrival)}
+            ${chk('opt-userlists', "Appear in others' user lists", cur.appearInUserLists)}
+          </div>
+          <div>
+            ${chk('opt-invites', 'Receive chat invitations', cur.receiveInvitations)}
+            ${chk('opt-filetx', 'Receive file transfer requests', cur.receiveFileTransfers, true)}
+            ${chk('opt-netmeeting', 'Receive NetMeeting calls', cur.receiveNetMeeting, true)}
+            ${chk('opt-savexit', 'Prompt to save on exit', cur.promptSaveOnExit)}
+          </div>
+        </div>
+        <div class="field-row-stacked" style="margin-top:8px"><label for="opt-soundpath">Sound search path:</label>
+          <input id="opt-soundpath" type="text"></div>
+      </div>
+      <div class="tab-panel" data-panel="textview" hidden>
+        <fieldset>
+          <legend>Line spacing</legend>
+          <div style="margin-bottom:4px">Place blank lines between:</div>
+          <div class="field-row"><input type="radio" name="opt-spacing" id="opt-sp-all"><label for="opt-sp-all">all messages</label></div>
+          <div class="field-row"><input type="radio" name="opt-spacing" id="opt-sp-diff"><label for="opt-sp-diff">different message types</label></div>
+          <div class="field-row"><input type="radio" name="opt-spacing" id="opt-sp-none"><label for="opt-sp-none">no blank lines</label></div>
+          ${chk('opt-hdrsep', 'Headers and messages on different lines', cur.headersSeparate)}
+        </fieldset>
+        <fieldset>
+          <legend>Text fonts</legend>
+          <p style="margin:0 0 6px">Click on the buttons below to customize the fonts for various message types, or reset the defaults.</p>
+          <div class="field-row" style="justify-content:center;gap:6px">
+            <button id="opt-changefont" disabled>Change Font...</button><button id="opt-resetfont" disabled>Reset Defaults</button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Host messages</legend>
+          <div style="margin-bottom:4px">Highlight host messages:</div>
+          ${chk('opt-hosthdr', 'Make host message headers bold', cur.hostHeadersBold)}
+          ${chk('opt-hostmsg', 'Make host messages bold', cur.hostMessagesBold)}
+        </fieldset>
+      </div>`;
+
+    const $ = <T extends HTMLElement = HTMLInputElement>(id: string) =>
+      body.querySelector<T>(`#${id}`)!;
+
+    const tabs = [...body.querySelectorAll<HTMLLIElement>('menu[role=tablist] li')];
+    const panels = [...body.querySelectorAll<HTMLElement>('.tab-panel')];
+    const selectTab = (name: string) => {
+      for (const t of tabs) t.setAttribute('aria-selected', String(t.dataset.tab === name));
+      for (const p of panels) p.hidden = p.dataset.panel !== name;
+    };
+    for (const t of tabs)
+      t.addEventListener('click', (e) => {
+        e.preventDefault();
+        selectTab(t.dataset.tab!);
+      });
+    selectTab(initialTab);
+
+    // fill values
+    $('opt-realname').value = cur.realname;
+    $('opt-nick').value = cur.nick;
+    $('opt-email').value = cur.email;
+    $('opt-homepage').value = cur.homepage;
+    $<HTMLTextAreaElement>('opt-profile').value = cur.profile;
+    $('opt-soundpath').value = cur.soundPath;
+    $(
+      cur.lineSpacing === 'different'
+        ? 'opt-sp-diff'
+        : cur.lineSpacing === 'none'
+          ? 'opt-sp-none'
+          : 'opt-sp-all',
+    ).checked = true;
+
+    const ok = document.createElement('button');
+    ok.textContent = 'OK';
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    buttons.append(ok, cancel);
+    ok.onclick = () => {
+      const lineSpacing: LineSpacing = $('opt-sp-diff').checked
+        ? 'different'
+        : $('opt-sp-none').checked
+          ? 'none'
+          : 'all';
+      const next: OptionsState = {
+        realname: $('opt-realname').value.trim() || 'Comic Chat Web user',
+        nick: $('opt-nick').value.trim() || cur.nick,
+        email: $('opt-email').value.trim(),
+        homepage: $('opt-homepage').value.trim(),
+        profile: $<HTMLTextAreaElement>('opt-profile').value.trim(),
+        dontSendComicData: $('opt-dontsend').checked,
+        allowWhispers: $('opt-whispers').checked,
+        playSounds: $('opt-playsounds').checked,
+        showArrivals: $('opt-arrivals').checked,
+        getIdentityOnArrival: $('opt-identity').checked,
+        appearInUserLists: $('opt-userlists').checked,
+        receiveInvitations: $('opt-invites').checked,
+        receiveFileTransfers: $('opt-filetx').checked,
+        receiveNetMeeting: $('opt-netmeeting').checked,
+        promptSaveOnExit: $('opt-savexit').checked,
+        soundPath: $('opt-soundpath').value,
+        lineSpacing,
+        headersSeparate: $('opt-hdrsep').checked,
+        hostHeadersBold: $('opt-hosthdr').checked,
+        hostMessagesBold: $('opt-hostmsg').checked,
+      };
+      // Personal Info is shared with the connect dialog's prefs.
+      savePrefs({
+        ...loadPrefs(),
+        nick: next.nick,
+        realname: next.realname,
+        email: next.email,
+        homepage: next.homepage,
+        profile: next.profile,
+      });
+      localStorage.setItem(OPTIONS_KEY, JSON.stringify(next));
+      close();
+      resolve(next);
+    };
+    cancel.onclick = () => {
+      close();
+      resolve(null);
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Small generic dialogs
 
 export function promptDialog(title: string, label: string, initial = ''): Promise<string | null> {
