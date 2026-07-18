@@ -983,6 +983,13 @@ export function showRoomListDialog(rooms: RoomListRow[]): Promise<string | null>
           <thead><tr><th style="text-align:left">Room</th><th style="text-align:right">Members</th><th style="text-align:left">Topic</th></tr></thead>
           <tbody></tbody>
         </table>
+        ${
+          rooms.length === 0
+            ? `<div class="rl-empty">This network returned no channel list.<br>
+                 Large networks (e.g. Libera.Chat) often don't publish one to web clients.<br>
+                 Use <b>Room &rarr; Enter Room</b> to join a room by name.</div>`
+            : ''
+        }
       </div>
       <div style="margin-top:6px;font-size:11px">${rooms.length} room${rooms.length === 1 ? '' : 's'}</div>`;
     const tbody = body.querySelector('tbody')!;

@@ -418,6 +418,14 @@ fieldset {
   min-height: 14px;
 }
 
+.rl-empty {
+  padding: 40px 24px;
+  text-align: center;
+  color: graytext;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
 /* Room tab bar (multi-room) */
 #tab-bar {
   display: flex;
