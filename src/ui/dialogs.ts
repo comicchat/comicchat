@@ -26,9 +26,42 @@ function dialogFrame(title: string): {
   win.append(bar, body, buttons);
   overlay.appendChild(win);
   document.body.appendChild(overlay);
+  makeDraggable(win, bar);
   const close = () => overlay.remove();
   (bar.querySelector('button[aria-label="Close"]') as HTMLButtonElement).onclick = close;
   return { overlay, body, buttons, close };
+}
+
+/** Let a window be dragged by its title bar. The offset is applied as a
+ *  transform so the flex-centred starting position is preserved. */
+function makeDraggable(win: HTMLElement, handle: HTMLElement) {
+  let offX = 0;
+  let offY = 0; // committed offset from the centred position
+  let startX = 0;
+  let startY = 0;
+  let baseX = 0;
+  let baseY = 0;
+  const onMove = (e: PointerEvent) => {
+    win.style.transform = `translate(${baseX + e.clientX - startX}px, ${baseY + e.clientY - startY}px)`;
+  };
+  const onUp = (e: PointerEvent) => {
+    offX = baseX + e.clientX - startX;
+    offY = baseY + e.clientY - startY;
+    handle.removeEventListener('pointermove', onMove);
+    handle.removeEventListener('pointerup', onUp);
+  };
+  handle.addEventListener('pointerdown', (e: PointerEvent) => {
+    // Don't start a drag on the title-bar buttons (Close, etc.).
+    if (e.button !== 0 || (e.target as HTMLElement).closest('.title-bar-controls')) return;
+    startX = e.clientX;
+    startY = e.clientY;
+    baseX = offX;
+    baseY = offY;
+    handle.setPointerCapture(e.pointerId);
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    e.preventDefault();
+  });
 }
 
 export interface ConnectChoice {

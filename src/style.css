@@ -327,6 +327,10 @@ body {
 .dialog-overlay .window {
   min-width: 320px;
 }
+.dialog-overlay .title-bar {
+  user-select: none;
+  touch-action: none;
+}
 .dialog-body {
   padding: 10px;
   font-size: 11px;
