@@ -19,7 +19,10 @@ const VERSION_REPLY = 'Comic Chat for the Web (Microsoft Chat 2.5 protocol)';
 
 export class IrcSession extends ChatSession {
   private client: Client | null = null;
-  private joined = false;
+  /** Channels we're currently joined to (supports several at once). */
+  private joinedChannels = new Set<string>();
+  /** Whether we've run the post-registration connect action once. */
+  private didInitialAction = false;
   profile = 'Chatting from Comic Chat for the Web.';
   private roomList: RoomListEntry[] = [];
   private pendingPings = new Map<string, number>();
@@ -50,7 +53,8 @@ export class IrcSession extends ChatSession {
             text: `Nickname "${this.opts.nick}" was already in use; you are now known as "${client.nick}".`,
           });
         }
-        if (!this.joined) {
+        if (!this.didInitialAction) {
+          this.didInitialAction = true;
           // Mirror the Connect dialog's action. Once we've actually joined a
           // room (see the JOIN handler), opts.action is pinned to 'room' so a
           // later reconnect rejoins it rather than re-listing.
@@ -63,7 +67,8 @@ export class IrcSession extends ChatSession {
           // 'connectonly' → stay connected without joining
         }
       } else if (client.status === Client.Status.DISCONNECTED) {
-        this.joined = false;
+        this.joinedChannels.clear();
+        this.didInitialAction = false;
         this.emit({ type: 'status', status: 'disconnected' });
       }
     });
@@ -97,26 +102,30 @@ export class IrcSession extends ChatSession {
       case 'JOIN': {
         const channel = msg.params[0];
         if (this.client!.isMyNick(from)) {
-          this.joined = true;
+          this.joinedChannels.add(channel);
           this.opts.channel = channel;
           this.opts.action = 'room';
           this.emit({ type: 'joined', channel });
-          this.announceCharacter({ characterId: this.opts.characterId });
+          this.announceCharacter({ characterId: this.opts.characterId }, channel);
         } else {
           this.emit({ type: 'join', channel, nick: from });
-          // Newcomers haven't seen our character yet.
-          this.announceCharacter({ characterId: this.opts.characterId });
+          // Newcomers haven't seen our character yet — announce in their room.
+          this.announceCharacter({ characterId: this.opts.characterId }, channel);
         }
         break;
       }
       case 'PART':
       case 'QUIT':
         this.emit({
+          // A QUIT leaves the network entirely; '*' means "all rooms".
           type: 'part',
-          channel: msg.command === 'PART' ? msg.params[0] : this.opts.channel,
+          channel: msg.command === 'PART' ? msg.params[0] : '*',
           nick: from,
           reason: msg.params[msg.params.length - 1],
         });
+        if (this.client!.isMyNick(from) && msg.command === 'PART') {
+          this.joinedChannels.delete(msg.params[0]);
+        }
         break;
       case 'NICK':
         this.emit({ type: 'nick', oldNick: from, newNick: msg.params[0] });
@@ -259,7 +268,12 @@ export class IrcSession extends ChatSession {
           this.emit({ type: 'profile', nick: from, text: hash.profile });
           return;
         case 'bdrop':
-          this.emit({ type: 'background', backgroundId: hash.background.toLowerCase(), from });
+          this.emit({
+            type: 'background',
+            backgroundId: hash.background.toLowerCase(),
+            from,
+            channel: target,
+          });
           return;
       }
     }
@@ -328,18 +342,18 @@ export class IrcSession extends ChatSession {
 
   joinRoom(channel: string) {
     if (!this.client) return;
-    if (this.joined && this.opts.channel !== channel) {
-      this.client.send({ command: 'PART', params: [this.opts.channel] });
-      this.joined = false;
-    }
+    // Multi-room: join in addition to any current rooms (no auto-part). Make it
+    // the active send target; the JOIN reply adds it to joinedChannels.
     this.opts.channel = channel;
-    this.client.send({ command: 'JOIN', params: [channel] });
+    if (!this.joinedChannels.has(channel)) {
+      this.client.send({ command: 'JOIN', params: [channel] });
+    }
   }
 
-  leaveRoom() {
-    if (!this.client || !this.joined) return;
-    this.client.send({ command: 'PART', params: [this.opts.channel] });
-    this.joined = false;
+  leaveRoom(channel = this.opts.channel) {
+    if (!this.client || !this.joinedChannels.has(channel)) return;
+    this.client.send({ command: 'PART', params: [channel] });
+    this.joinedChannels.delete(channel);
   }
 
   requestRoomList() {
@@ -388,12 +402,14 @@ export class IrcSession extends ChatSession {
   }
 
   announceBackground(backgroundId: string) {
-    if (this.joined) this.sendRaw(this.opts.channel, buildBDrop(backgroundId));
+    if (this.joinedChannels.has(this.opts.channel)) {
+      this.sendRaw(this.opts.channel, buildBDrop(backgroundId));
+    }
   }
 
-  sendMessage(kind: BalloonKind, text: string, cc: CCMeta, whisperTo?: string) {
+  sendMessage(kind: BalloonKind, text: string, cc: CCMeta, whisperTo?: string, channel?: string) {
     if (!this.client) return;
-    const target = whisperTo ?? this.opts.channel;
+    const target = whisperTo ?? channel ?? this.opts.channel;
     const pose: OutgoingPose = {
       faceIndex: cc.faceIndex ?? -1,
       torsoIndex: cc.torsoIndex ?? -1,
@@ -413,10 +429,10 @@ export class IrcSession extends ChatSession {
     });
   }
 
-  announceCharacter(cc: CCMeta) {
-    if (!this.client || !this.joined) return;
+  announceCharacter(cc: CCMeta, channel = this.opts.channel) {
+    if (!this.client || !this.joinedChannels.has(channel)) return;
     if (cc.characterId) {
-      this.sendRaw(this.opts.channel, buildAppearsAs(cc.characterId, cc.characterUrl));
+      this.sendRaw(channel, buildAppearsAs(cc.characterId, cc.characterUrl));
     }
   }
 }

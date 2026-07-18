@@ -73,14 +73,54 @@ interface TranscriptLine {
   self: boolean;
 }
 
+/** Per-room state so several rooms can be open at once (one tab each). */
+class RoomView {
+  room: Room;
+  page: Page;
+  transcript: TranscriptLine[] = [];
+  topic = '';
+  unread = false;
+  constructor(
+    public channel: string,
+    art: ArtStore,
+    eligible: string[],
+  ) {
+    this.room = new Room(art);
+    this.room.channel = channel;
+    this.room.eligibleCharacterIds = eligible;
+    this.page = new Page(art);
+  }
+}
+
 export class App {
   art: ArtStore;
   myCharacterId = 'mike';
   wheel!: EmotionWheel;
   myAvatar: AvatarState | null = null;
   session: ChatSession | null = null;
-  room: Room;
-  page: Page;
+  /** Open rooms keyed by lowercased channel; each is a tab. */
+  private rooms = new Map<string, RoomView>();
+  activeChannel = '';
+  /** Placeholder returned by the room/page getters when not in any room. */
+  private blank!: RoomView;
+  tabBarVisible = true;
+  /** Background chosen in the connect dialog, applied to the next room joined. */
+  private pendingBackgroundId: string | null = null;
+  get active(): RoomView {
+    return this.rooms.get(this.activeChannel) ?? this.blank;
+  }
+  get room(): Room {
+    return this.active.room;
+  }
+  get page(): Page {
+    return this.active.page;
+  }
+  get transcript(): TranscriptLine[] {
+    return this.active.transcript;
+  }
+  get topic(): string {
+    return this.active.topic;
+  }
   registry = new CommandRegistry();
   toolbars!: Toolbars;
 
@@ -97,9 +137,6 @@ export class App {
   private floodTimes = new Map<string, number[]>();
   soundsOff = !this.options.playSounds;
   away = false;
-  transcript: TranscriptLine[] = [];
-  private lastJoinedChannel = '';
-  topic = '';
   motd = '';
   ignored = new Set<string>();
   selectedMembers = new Set<string>();
@@ -110,11 +147,30 @@ export class App {
 
   constructor(art: ArtStore) {
     this.art = art;
-    this.room = new Room(art);
-    this.room.eligibleCharacterIds = this.rosterCharacterIds();
-    this.page = new Page(art);
-    this.room.onRosterChange = () => this.renderRoster();
-    this.page.onLayout = () => this.queueRender();
+    this.blank = this.makeRoomView('');
+  }
+
+  /** Build a RoomView whose render callbacks only fire when it's the active
+   *  room, so background rooms accumulate state without redrawing the view. */
+  private makeRoomView(channel: string): RoomView {
+    const rv = new RoomView(channel, this.art, this.rosterCharacterIds());
+    rv.room.onRosterChange = () => {
+      if (rv === this.active) this.renderRoster();
+    };
+    rv.page.onLayout = () => {
+      if (rv === this.active) this.queueRender();
+    };
+    rv.page.fontNormal = makeFontInfo(BALLOON_FONT_TWIPS, false, this.comicFontFamily);
+    rv.page.fontWhisper = makeFontInfo(BALLOON_FONT_TWIPS, true, this.comicFontFamily);
+    return rv;
+  }
+
+  private allRooms(): RoomView[] {
+    return [this.blank, ...this.rooms.values()];
+  }
+
+  private roomFor(channel: string): RoomView | undefined {
+    return this.rooms.get(channel.toLowerCase());
   }
 
   rosterCharacterIds(): string[] {
@@ -157,7 +213,7 @@ export class App {
 
   private updatePanelSize() {
     const scroll = this.$('comic-scroll');
-    this.page.setViewWidth(scroll.clientWidth, scroll.clientHeight);
+    for (const rv of this.allRooms()) rv.page.setViewWidth(scroll.clientWidth, scroll.clientHeight);
   }
 
   // -- commands ---------------------------------------------------------
@@ -254,6 +310,16 @@ export class App {
         id: 'ID_VIEW_STATUSWINDOW',
         run: () => this.toggleStatusWindow(),
         checked: () => this.statusWindowVisible,
+      },
+      {
+        id: 'ID_VIEW_TABBAR',
+        prompt: 'Shows or hides the room tab bar.',
+        tip: 'Tab Bar',
+        run: () => {
+          this.tabBarVisible = !this.tabBarVisible;
+          this.renderTabs();
+        },
+        checked: () => this.tabBarVisible,
       },
       {
         id: 'ID_VIEW_COMICS',
@@ -824,21 +890,16 @@ export class App {
     if (!choice) return;
 
     await this.setMyCharacter(choice.characterId);
-    if (this.page.backgroundId !== choice.backgroundId) {
-      this.page.backgroundId = choice.backgroundId;
-      this.session?.announceBackground(choice.backgroundId);
-    }
+    this.pendingBackgroundId = choice.backgroundId;
 
-    // Already connected to the same server and heading to the same room: just
-    // re-render rather than reconnecting.
-    if (
-      this.session &&
-      choice.action === 'room' &&
-      this.session.opts.url === choice.url &&
-      this.session.opts.nick === choice.nick &&
-      this.session.opts.channel === choice.channel
-    ) {
-      this.queueRender();
+    // Same server, already connected: just join the room (adds a tab) instead
+    // of tearing down the connection — this is how multi-room works.
+    if (this.session && choice.action === 'room' && this.session.opts.url === choice.url) {
+      if (this.rooms.has(choice.channel.toLowerCase())) {
+        this.setActiveRoom(choice.channel);
+      } else {
+        this.session.joinRoom(choice.channel);
+      }
       return;
     }
 
@@ -934,16 +995,16 @@ export class App {
     }
   }
 
-  /** Send the automatic greeting to a user who just joined, if configured. */
-  private greetNewcomer(nick: string) {
+  /** Send the automatic greeting to a user who just joined a room, if set. */
+  private greetNewcomer(nick: string, channel: string) {
     const a = this.automations;
-    if (a.greetingMode === 'none' || !this.session || !this.room.channel) return;
+    if (a.greetingMode === 'none' || !this.session) return;
     if (nick.toLowerCase() === this.session.nick.toLowerCase()) return;
-    const text = a.greetingMessage.replace(/%name/gi, nick).replace(/%room/gi, this.room.channel);
+    const text = a.greetingMessage.replace(/%name/gi, nick).replace(/%room/gi, channel);
     if (!text.trim()) return;
     const cc = this.buildOutgoingCC(false);
     if (a.greetingMode === 'whisper') this.session.sendMessage('whisper', text, cc, nick);
-    else this.session.sendMessage('say', text, cc);
+    else this.session.sendMessage('say', text, cc, undefined, channel);
   }
 
   /** Auto-ignore a user who sends more than floodCount messages within
@@ -986,9 +1047,12 @@ export class App {
   disconnect() {
     this.session?.disconnect();
     this.session = null;
-    this.room.clear();
-    this.page.clear();
-    this.transcript = [];
+    this.rooms.clear();
+    this.activeChannel = '';
+    this.blank.room.clear();
+    this.blank.page.clear();
+    this.blank.transcript = [];
+    this.renderTabs();
     this.renderTextView();
     this.queueRender();
     this.refreshChrome();
@@ -1013,61 +1077,84 @@ export class App {
         if (ev.status === 'disconnected') this.setTitle('Microsoft Chat - Not Connected');
         break;
       case 'joined': {
-        const prev = this.lastJoinedChannel;
-        if (prev && prev !== ev.channel) {
-          this.room.clear();
-          this.page.clear();
-          this.transcript = [];
-          this.renderTextView();
+        const key = ev.channel.toLowerCase();
+        if (!this.rooms.has(key)) {
+          const rv = this.makeRoomView(ev.channel);
+          if (this.pendingBackgroundId) rv.page.backgroundId = this.pendingBackgroundId;
+          this.rooms.set(key, rv);
         }
-        this.lastJoinedChannel = ev.channel;
-        this.room.channel = ev.channel;
-        this.setTitle(`Microsoft Chat - [${ev.channel}]`);
-        this.$('status-room').textContent = ev.channel;
         this.addStatusLine(`Now chatting in room ${ev.channel}.`);
-        this.queueRender();
+        this.setActiveRoom(ev.channel);
+        if (this.pendingBackgroundId) {
+          this.session?.announceBackground(this.pendingBackgroundId);
+          this.pendingBackgroundId = null;
+        }
         break;
       }
-      case 'members':
+      case 'members': {
+        const rv = this.roomFor(ev.channel);
+        if (!rv) break;
         for (const nick of ev.nicks) {
           const isSelf = nick.toLowerCase() === this.session?.nick.toLowerCase();
-          void this.registerMember(nick, isSelf ? this.myCharacterId : undefined);
+          void this.registerMemberIn(rv, nick, isSelf ? this.myCharacterId : undefined);
         }
-        break;
-      case 'join':
-        if (this.options.showArrivals) this.addStatusLine(`${ev.nick} has joined the room.`);
-        void this.registerMember(ev.nick);
-        this.greetNewcomer(ev.nick);
-        break;
-      case 'part':
-        if (ev.nick.toLowerCase() === this.session?.nick.toLowerCase()) {
-          this.room.clear();
-          this.room.channel = '';
-          this.$('status-room').textContent = '';
-          this.setTitle('Microsoft Chat - Connected');
-          this.addStatusLine('You have left the room.');
-        } else {
-          if (this.options.showArrivals) this.addStatusLine(`${ev.nick} has left the room.`);
-          this.room.removeMember(ev.nick);
-          this.page.removeMember(ev.nick.toLowerCase());
-        }
-        break;
-      case 'nick': {
-        this.addStatusLine(`${ev.oldNick} is now known as ${ev.newNick}.`);
-        this.room.renameMember(ev.oldNick, ev.newNick);
-        const m = this.room.member(ev.newNick);
-        if (m) this.syncPageMember(m);
         break;
       }
-      case 'background':
-        if (this.art.backgroundUrl(ev.backgroundId)) {
-          this.page.backgroundId = ev.backgroundId;
-          this.addStatusLine(`${ev.from} changed the background to ${ev.backgroundId}.`);
+      case 'join': {
+        const rv = this.roomFor(ev.channel);
+        if (!rv) break;
+        if (this.options.showArrivals) {
+          this.addStatusLine(`${ev.nick} has joined ${ev.channel}.`);
+        }
+        void this.registerMemberIn(rv, ev.nick);
+        this.greetNewcomer(ev.nick, ev.channel);
+        this.markUnread(rv);
+        break;
+      }
+      case 'part': {
+        const self = ev.nick.toLowerCase() === this.session?.nick.toLowerCase();
+        if (self && ev.channel !== '*') {
+          this.addStatusLine(`You have left ${ev.channel}.`);
+          this.removeRoom(ev.channel);
+          break;
+        }
+        // A remote user parting one room ('#chan') or quitting the network ('*').
+        const targets = ev.channel === '*' ? this.allRooms() : [this.roomFor(ev.channel)];
+        for (const rv of targets) {
+          if (!rv || !rv.room.member(ev.nick)) continue;
+          if (this.options.showArrivals) {
+            this.addStatusLine(`${ev.nick} has left ${rv.channel}.`);
+          }
+          rv.room.removeMember(ev.nick);
+          rv.page.removeMember(ev.nick.toLowerCase());
+          if (rv === this.active) this.queueRender();
         }
         break;
+      }
+      case 'nick': {
+        this.addStatusLine(`${ev.oldNick} is now known as ${ev.newNick}.`);
+        for (const rv of this.rooms.values()) {
+          if (!rv.room.member(ev.oldNick)) continue;
+          rv.room.renameMember(ev.oldNick, ev.newNick);
+          const m = rv.room.member(ev.newNick);
+          if (m) this.syncPageMemberIn(rv, m);
+        }
+        break;
+      }
+      case 'background': {
+        const rv = this.roomFor(ev.channel);
+        if (rv && this.art.backgroundUrl(ev.backgroundId)) {
+          rv.page.backgroundId = ev.backgroundId;
+          this.addStatusLine(
+            `${ev.from} changed the background of ${rv.channel} to ${ev.backgroundId}.`,
+          );
+          if (rv === this.active) this.queueRender();
+        }
+        break;
+      }
       case 'info':
         this.addStatusLine(ev.text);
-        this.transcript.push({ nick: '', kind: 'info', text: ev.text, self: false });
+        this.active.transcript.push({ nick: '', kind: 'info', text: ev.text, self: false });
         this.renderTextView();
         break;
       case 'identity':
@@ -1078,10 +1165,12 @@ export class App {
         this.addStatusLine(`${ev.nick}'s profile: ${ev.text}`);
         messageDialog(`${ev.nick}'s Profile`, ev.text);
         break;
-      case 'topic':
-        this.topic = ev.topic;
-        this.addStatusLine(`Topic: ${ev.topic}`);
+      case 'topic': {
+        const rv = this.roomFor(ev.channel);
+        if (rv) rv.topic = ev.topic;
+        this.addStatusLine(`Topic of ${ev.channel}: ${ev.topic}`);
         break;
+      }
       case 'roomlist':
         void showRoomListDialog(ev.rooms).then((room) => {
           if (room) this.session?.joinRoom(room);
@@ -1090,29 +1179,96 @@ export class App {
       case 'motd':
         this.motd = ev.text;
         break;
-      case 'message':
-        await this.handleChatMessage(ev.msg);
+      case 'message': {
+        // Channel messages go to that room; private/whisper stay in the active.
+        const target = ev.msg.target;
+        const rv =
+          target.startsWith('#') || target.startsWith('&') ? this.roomFor(target) : this.active;
+        if (rv) await this.handleChatMessage(rv, ev.msg);
         break;
+      }
     }
     const n = this.room.members.size;
     this.$('status-users').textContent = n ? `${n} member${n === 1 ? '' : 's'}` : '';
     this.refreshChrome();
   }
 
-  private async registerMember(nick: string, characterId?: string) {
-    const m = await this.room.ensureAvatar(nick, characterId);
-    this.syncPageMember(m);
-    // Keep a single avatar state for self (rotation/freeze live together).
-    if (m.avatar && this.session && nick.toLowerCase() === this.session.nick.toLowerCase()) {
-      m.avatar.frozen = this.myAvatar?.frozen ?? false;
-      this.myAvatar = m.avatar;
+  /** Flag a non-active room as having new activity, and refresh the tab strip. */
+  private markUnread(rv: RoomView) {
+    if (rv !== this.active) {
+      rv.unread = true;
+      this.renderTabs();
     }
+  }
+
+  // -- room tabs -------------------------------------------------------------
+
+  setActiveRoom(channel: string) {
+    const key = channel.toLowerCase();
+    const rv = this.rooms.get(key);
+    if (!rv) return;
+    this.activeChannel = key;
+    rv.unread = false;
+    if (this.session) this.session.opts.channel = rv.channel; // active send target
+    this.setTitle(`Microsoft Chat - [${rv.channel}]`);
+    this.$('status-room').textContent = rv.channel;
+    this.renderRoster();
+    this.renderTextView();
+    this.queueRender();
+    this.renderTabs();
+    this.refreshChrome();
+  }
+
+  private removeRoom(channel: string) {
+    const key = channel.toLowerCase();
+    this.rooms.delete(key);
+    if (this.activeChannel === key) {
+      const nextKey = this.rooms.keys().next().value as string | undefined;
+      if (nextKey) {
+        this.setActiveRoom(this.rooms.get(nextKey)!.channel);
+      } else {
+        this.activeChannel = '';
+        this.$('status-room').textContent = '';
+        this.setTitle('Microsoft Chat - Connected');
+        this.renderRoster();
+        this.renderTextView();
+        this.queueRender();
+      }
+    }
+    this.renderTabs();
+  }
+
+  private renderTabs() {
+    const bar = this.$('tab-bar');
+    const show = this.tabBarVisible && this.rooms.size > 0;
+    bar.hidden = !show;
+    bar.innerHTML = '';
+    if (!show) return;
+    for (const rv of this.rooms.values()) {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'room-tab';
+      if (rv.channel.toLowerCase() === this.activeChannel) tab.classList.add('active');
+      if (rv.unread) tab.classList.add('unread');
+      tab.textContent = rv.channel;
+      tab.onclick = () => this.setActiveRoom(rv.channel);
+      bar.appendChild(tab);
+    }
+  }
+
+  private async registerMemberIn(rv: RoomView, nick: string, characterId?: string) {
+    const m = await rv.room.ensureAvatar(nick, characterId);
+    // Self shares one avatar across every room (rotation/freeze live together).
+    if (this.session && nick.toLowerCase() === this.session.nick.toLowerCase() && this.myAvatar) {
+      m.avatar = this.myAvatar;
+    }
+    this.syncPageMemberIn(rv, m);
     return m;
   }
 
-  private syncPageMember(m: Member) {
+  private syncPageMemberIn(rv: RoomView, m: Member) {
     if (!m.avatar) return;
-    this.page.setMember({
+    rv.page.setMember({
       key: m.nick.toLowerCase(),
       nick: m.nick,
       avatar: m.avatar,
@@ -1120,11 +1276,12 @@ export class App {
     });
   }
 
-  private async handleChatMessage(msg: ChatMessage) {
+  private async handleChatMessage(rv: RoomView, msg: ChatMessage) {
     if (!msg.self && this.isFlooding(msg.from, msg.time)) return;
     if (this.ignored.has(msg.from.toLowerCase())) return;
+    const active = rv === this.active;
 
-    const member = await this.registerMember(msg.from, msg.cc?.characterId ?? undefined);
+    const member = await this.registerMemberIn(rv, msg.from, msg.cc?.characterId ?? undefined);
     if (msg.cc) member.isComicUser = true;
     if (!msg.text) return;
 
@@ -1138,8 +1295,8 @@ export class App {
     if (msg.cc?.talkTos) {
       member.talkTos = msg.cc.talkTos
         .map((n) => n.toLowerCase())
-        .filter((k) => this.room.members.has(k));
-      this.syncPageMember(member);
+        .filter((k) => rv.room.members.has(k));
+      this.syncPageMemberIn(rv, member);
     }
 
     // Formatting codes → styled segments; plain text drives everything else.
@@ -1169,8 +1326,8 @@ export class App {
 
     // '<Chr>' → expression-only reaction (AddReaction), no balloon.
     if (plain === '<Chr>') {
-      this.page.addReaction(msg.from.toLowerCase());
-      this.queueRender();
+      rv.page.addReaction(msg.from.toLowerCase());
+      if (active) this.queueRender();
       return;
     }
 
@@ -1187,11 +1344,14 @@ export class App {
           : [{ text: prefix, fmt: { ...DEFAULT_FORMAT } }, ...content];
     }
 
-    this.transcript.push({ nick: msg.from, kind: msg.kind, text: plain, self: msg.self });
-    this.renderTextView();
-
-    this.page.addLine(msg.from.toLowerCase(), content, kind);
-    this.queueRender();
+    rv.transcript.push({ nick: msg.from, kind: msg.kind, text: plain, self: msg.self });
+    rv.page.addLine(msg.from.toLowerCase(), content, kind);
+    if (active) {
+      this.renderTextView();
+      this.queueRender();
+    } else {
+      this.markUnread(rv);
+    }
   }
 
   // -- outgoing ---------------------------------------------------------
@@ -1259,7 +1419,7 @@ export class App {
 
     if (me) {
       me.talkTos = [...this.selectedMembers];
-      this.syncPageMember(me);
+      this.syncPageMemberIn(this.active, me);
     }
   }
 
@@ -1467,8 +1627,10 @@ export class App {
     const picked = await showUserListDialog(names, 'Font');
     if (!picked) return;
     this.comicFontFamily = fonts[names.indexOf(picked)];
-    this.page.fontNormal = makeFontInfo(BALLOON_FONT_TWIPS, false, this.comicFontFamily);
-    this.page.fontWhisper = makeFontInfo(BALLOON_FONT_TWIPS, true, this.comicFontFamily);
+    for (const rv of this.allRooms()) {
+      rv.page.fontNormal = makeFontInfo(BALLOON_FONT_TWIPS, false, this.comicFontFamily);
+      rv.page.fontWhisper = makeFontInfo(BALLOON_FONT_TWIPS, true, this.comicFontFamily);
+    }
     this.applyInputFormat();
     this.setStatus(`Comic font: ${picked}`);
   }
@@ -1563,8 +1725,8 @@ export class App {
   }
 
   private clearHistory() {
-    this.page.clear();
-    this.transcript = [];
+    this.active.page.clear();
+    this.active.transcript = [];
     this.renderTextView();
     this.queueRender();
   }
@@ -1608,8 +1770,11 @@ export class App {
     this.myAvatar.frozen = frozen;
     if (this.session) {
       this.session.opts.characterId = id;
-      this.session.announceCharacter({ characterId: id });
-      await this.registerMember(this.session.nick, id);
+      // Re-announce and re-register self in every open room.
+      for (const rv of this.rooms.values()) {
+        this.session.announceCharacter({ characterId: id }, rv.channel);
+        await this.registerMemberIn(rv, this.session.nick, id);
+      }
     }
     await this.renderSelfView(this.wheel?.emotion ?? { emotion: EM.NEUTRAL, intensity: 0 });
   }

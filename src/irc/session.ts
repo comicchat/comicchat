@@ -44,7 +44,7 @@ export type SessionEvent =
   | { type: 'join'; channel: string; nick: string }
   | { type: 'part'; channel: string; nick: string; reason?: string }
   | { type: 'nick'; oldNick: string; newNick: string }
-  | { type: 'background'; backgroundId: string; from: string }
+  | { type: 'background'; backgroundId: string; from: string; channel: string }
   | { type: 'info'; text: string } // status-window line
   | { type: 'identity'; nick: string; text: string } // WHOIS result
   | { type: 'profile'; nick: string; text: string } // '# HeresInfo' result
@@ -84,9 +84,15 @@ export abstract class ChatSession extends EventTarget {
   abstract connect(): void;
   abstract disconnect(): void;
   abstract get nick(): string;
-  abstract sendMessage(kind: BalloonKind, text: string, cc: CCMeta, whisperTo?: string): void;
+  abstract sendMessage(
+    kind: BalloonKind,
+    text: string,
+    cc: CCMeta,
+    whisperTo?: string,
+    channel?: string,
+  ): void;
   /** Announce a character/emotion change without a message (profile update). */
-  abstract announceCharacter(cc: CCMeta): void;
+  abstract announceCharacter(cc: CCMeta, channel?: string): void;
 
   // Member/room commands (no-ops where a backend doesn't support them).
   joinRoom(_channel: string) {}

@@ -412,6 +412,48 @@ fieldset {
   min-height: 14px;
 }
 
+/* Room tab bar (multi-room) */
+#tab-bar {
+  display: flex;
+  gap: 2px;
+  padding: 3px 4px 0;
+  background: silver;
+  border-bottom: 1px solid grey;
+  overflow-x: auto;
+}
+.room-tab {
+  font-size: 11px;
+  padding: 3px 10px 4px;
+  min-width: 56px;
+  white-space: nowrap;
+}
+.room-tab::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 7px;
+  margin-right: 5px;
+  background: #ffe000;
+  border: 1px solid #806c00;
+  border-radius: 2px 2px 2px 0;
+  vertical-align: middle;
+}
+.room-tab.active {
+  font-weight: bold;
+  box-shadow:
+    inset -1px -1px grey,
+    inset 1px 1px #0a0a0a,
+    inset -2px -2px #dfdfdf,
+    inset 2px 2px #808080;
+}
+.room-tab.unread {
+  font-style: italic;
+}
+.room-tab.unread::before {
+  background: #ff3030;
+  border-color: #800;
+}
+
 /* Automations dialog */
 .au-body {
   width: 440px;
