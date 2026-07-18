@@ -203,10 +203,13 @@ export class App {
     this.renderRoster();
     this.setStatus('Not connected');
     this.hookInput();
-    window.addEventListener('resize', () => {
+    // Keep the comic layout in sync with the viewport's real size. A
+    // ResizeObserver fires once the flex layout has settled (fixing an initial
+    // too-small render) and on every later change, including sidebar drags.
+    new ResizeObserver(() => {
       this.updatePanelSize();
       this.queueRender();
-    });
+    }).observe(this.$('comic-scroll'));
     this.updatePanelSize();
     void this.connectFlow();
   }
