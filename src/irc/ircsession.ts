@@ -5,8 +5,14 @@ import Client from './gamja/client.js';
 import * as irc from './gamja/irc.js';
 import { ChatSession, type BalloonKind, type CCMeta, type RoomListEntry } from './session';
 import {
-  buildAnnotation, buildAppearsAs, buildBDrop, buildGetCharInfo, buildHeresInfo,
-  parseAnnotation, parseHashCommand, type OutgoingPose,
+  buildAnnotation,
+  buildAppearsAs,
+  buildBDrop,
+  buildGetCharInfo,
+  buildHeresInfo,
+  parseAnnotation,
+  parseHashCommand,
+  type OutgoingPose,
 } from './protocol';
 
 const VERSION_REPLY = 'Comic Chat for the Web (Microsoft Chat 2.5 protocol)';
@@ -19,7 +25,9 @@ export class IrcSession extends ChatSession {
   private pendingPings = new Map<string, number>();
   private motdLines: string[] = [];
 
-  get nick() { return this.client?.nick ?? this.opts.nick; }
+  get nick() {
+    return this.client?.nick ?? this.opts.nick;
+  }
 
   connect() {
     this.emit({ type: 'status', status: 'connecting' });
@@ -35,6 +43,12 @@ export class IrcSession extends ChatSession {
     client.addEventListener('status', () => {
       if (client.status === Client.Status.REGISTERED) {
         this.emit({ type: 'status', status: 'registered' });
+        if (client.nick && client.nick !== this.opts.nick) {
+          this.emit({
+            type: 'info',
+            text: `Nickname "${this.opts.nick}" was already in use; you are now known as "${client.nick}".`,
+          });
+        }
         if (!this.joined) {
           client.send({ command: 'JOIN', params: [this.opts.channel] });
         }
@@ -46,7 +60,11 @@ export class IrcSession extends ChatSession {
 
     client.addEventListener('error', (e) => {
       const detail = (e as CustomEvent).detail;
-      this.emit({ type: 'status', status: 'error', detail: String((detail as Error)?.message ?? detail) });
+      this.emit({
+        type: 'status',
+        status: 'error',
+        detail: String((detail as Error)?.message ?? detail),
+      });
     });
 
     client.addEventListener('message', (e) => {
@@ -131,7 +149,10 @@ export class IrcSession extends ChatSession {
         });
         break;
       case '312': // RPL_WHOISSERVER
-        this.emit({ type: 'info', text: `${msg.params[1]} is on server ${msg.params[2]} (${msg.params[3] ?? ''})` });
+        this.emit({
+          type: 'info',
+          text: `${msg.params[1]} is on server ${msg.params[2]} (${msg.params[3] ?? ''})`,
+        });
         break;
       case '301': // RPL_AWAY
         this.emit({ type: 'info', text: `${msg.params[1]} is away: ${msg.params[2] ?? ''}` });
@@ -158,7 +179,10 @@ export class IrcSession extends ChatSession {
         this.emit({ type: 'motd', text: this.motdLines.join('\n') });
         break;
       case 'KICK':
-        this.emit({ type: 'info', text: `${from} kicked ${msg.params[1]} from ${msg.params[0]} (${msg.params[2] ?? ''})` });
+        this.emit({
+          type: 'info',
+          text: `${from} kicked ${msg.params[1]} from ${msg.params[0]} (${msg.params[2] ?? ''})`,
+        });
         this.emit({ type: 'part', channel: msg.params[0], nick: msg.params[1], reason: 'kicked' });
         break;
     }
@@ -200,9 +224,16 @@ export class IrcSession extends ChatSession {
           this.emit({
             type: 'message',
             msg: {
-              from, target, kind: 'say', text: '',
-              cc: { characterId: hash.character.toLowerCase(), characterUrl: hash.url ?? undefined },
-              self: this.client!.isMyNick(from), time: Date.now(),
+              from,
+              target,
+              kind: 'say',
+              text: '',
+              cc: {
+                characterId: hash.character.toLowerCase(),
+                characterUrl: hash.url ?? undefined,
+              },
+              self: this.client!.isMyNick(from),
+              time: Date.now(),
             },
           });
           return;
@@ -238,13 +269,19 @@ export class IrcSession extends ChatSession {
       // queries → NOTICE replies, like the original ReplyVersion/ReplyPing/ReplyTime
       switch (ctcp) {
         case 'VERSION':
-          this.client?.send({ command: 'NOTICE', params: [from, `\x01VERSION ${VERSION_REPLY}\x01`] });
+          this.client?.send({
+            command: 'NOTICE',
+            params: [from, `\x01VERSION ${VERSION_REPLY}\x01`],
+          });
           break;
         case 'PING':
           this.client?.send({ command: 'NOTICE', params: [from, `\x01PING ${param}\x01`] });
           break;
         case 'TIME':
-          this.client?.send({ command: 'NOTICE', params: [from, `\x01TIME ${new Date().toString()}\x01`] });
+          this.client?.send({
+            command: 'NOTICE',
+            params: [from, `\x01TIME ${new Date().toString()}\x01`],
+          });
           break;
       }
     } else {
@@ -257,7 +294,10 @@ export class IrcSession extends ChatSession {
           const sent = this.pendingPings.get(from.toLowerCase());
           if (sent) {
             this.pendingPings.delete(from.toLowerCase());
-            this.emit({ type: 'info', text: `Lag time to ${from}: ${((Date.now() - sent) / 1000).toFixed(2)} seconds.` });
+            this.emit({
+              type: 'info',
+              text: `Lag time to ${from}: ${((Date.now() - sent) / 1000).toFixed(2)} seconds.`,
+            });
           }
           break;
         }

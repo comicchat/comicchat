@@ -34,6 +34,22 @@ const permanentCaps = [
 const RECONNECT_MIN_DELAY_MSEC = 10 * 1000; // 10s
 const RECONNECT_MAX_DELAY_MSEC = 10 * 60 * 1000; // 10min
 
+// How many alternate nicks to try when the requested one is taken/unavailable
+// during registration before giving up.
+const MAX_NICK_ATTEMPTS = 10;
+
+// Derive an alternate nick after a collision. Classic IRC behaviour is to
+// append underscores; once that gets unwieldy we fall back to a numeric suffix
+// so we stay within typical NICKLEN limits.
+function alternateNick(base, attempt) {
+	if (attempt <= 3) {
+		return base + "_".repeat(attempt);
+	}
+	let suffix = String(attempt);
+	let trimmed = base.slice(0, Math.max(1, 24 - suffix.length));
+	return trimmed + suffix;
+}
+
 // WebSocket status codes
 // https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
 const NORMAL_CLOSURE = 1000;
@@ -116,6 +132,7 @@ export default class Client extends EventTarget {
 	status = Client.Status.DISCONNECTED;
 	serverPrefix = FALLBACK_SERVER_PREFIX;
 	nick = null;
+	registrationNickAttempts = 0;
 	supportsCap = false;
 	caps = new irc.CapRegistry();
 	isupport = new irc.Isupport();
@@ -258,6 +275,7 @@ export default class Client extends EventTarget {
 		this.setPingInterval(this.params.ping);
 
 		this.nick = this.params.nick;
+		this.registrationNickAttempts = 0;
 
 		this.send({ command: "CAP", params: ["LS", "302"] });
 		if (this.params.pass) {
@@ -423,11 +441,29 @@ export default class Client extends EventTarget {
 			this.dispatchError(new IRCError(msg));
 			this.disconnect();
 			break;
-		case irc.ERR_PASSWDMISMATCH:
-		case irc.ERR_ERRONEUSNICKNAME:
 		case irc.ERR_NICKNAMEINUSE:
 		case irc.ERR_NICKCOLLISION:
 		case irc.ERR_UNAVAILRESOURCE:
+			// During registration a taken/unavailable nick is recoverable:
+			// pick an alternate and retry on the same connection instead of
+			// giving up. This keeps the client alive when a ghost of a previous
+			// session (or a second client) still holds the requested nick — the
+			// common "connection sometimes fails" case. Once registered, or once
+			// we've exhausted our attempts, fall through to the normal error.
+			if (this.status !== Client.Status.REGISTERED &&
+					this.registrationNickAttempts < MAX_NICK_ATTEMPTS) {
+				this.registrationNickAttempts++;
+				this.nick = alternateNick(this.params.nick, this.registrationNickAttempts);
+				this.send({ command: "NICK", params: [this.nick] });
+				break;
+			}
+			this.dispatchError(new IRCError(msg));
+			if (this.status != Client.Status.REGISTERED) {
+				this.disconnect();
+			}
+			break;
+		case irc.ERR_PASSWDMISMATCH:
+		case irc.ERR_ERRONEUSNICKNAME:
 		case irc.ERR_NOPERMFORHOST:
 		case irc.ERR_YOUREBANNEDCREEP:
 			this.dispatchError(new IRCError(msg));
