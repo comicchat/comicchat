@@ -234,7 +234,7 @@ export function showConnectDialog(
     const favSelect = $<HTMLSelectElement>('cd-fav');
     favSelect.appendChild(new Option('(select a favorite)', ''));
     favorites.forEach((f, i) => {
-      favSelect.appendChild(new Option(`${f.channel} on ${f.url}`, String(i)));
+      favSelect.appendChild(new Option(favoriteLabel(f), String(i)));
     });
     favSelect.onchange = () => {
       const f = favorites[Number(favSelect.value)];
@@ -1094,6 +1094,12 @@ export function showRoomPropertiesDialog(
 export interface FavoriteRoom {
   url: string;
   channel: string;
+  label?: string; // friendly server name for display (e.g. "Libera.Chat")
+}
+
+/** How a favorite reads in a list: "#room on Libera.Chat" / "#room on ws://…". */
+export function favoriteLabel(f: FavoriteRoom): string {
+  return `${f.channel} on ${f.label ?? f.url}`;
 }
 
 export function showFavoritesDialog(
@@ -1106,7 +1112,7 @@ export function showFavoritesDialog(
     favorites.forEach((f, i) => {
       const opt = document.createElement('option');
       opt.value = String(i);
-      opt.textContent = `${f.channel} on ${f.url}`;
+      opt.textContent = favoriteLabel(f);
       list.appendChild(opt);
     });
     const go = document.createElement('button');

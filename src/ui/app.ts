@@ -1654,9 +1654,24 @@ export class App {
 
   // -- favorites -------------------------------------------------------------
 
+  /** Well-known IRC-over-WebSocket networks seeded on first run. All verified
+   *  to accept a cross-origin WebSocket handshake; the channel is created on
+   *  join if it doesn't exist yet. */
+  private static readonly DEFAULT_FAVORITES: FavoriteRoom[] = [
+    { label: 'Local ergo', url: 'ws://localhost:8067', channel: '#comicchat' },
+    { label: 'Libera.Chat', url: 'wss://web.libera.chat/webirc/websocket/', channel: '#comicchat' },
+    { label: 'Ergo testnet', url: 'wss://testnet.ergo.chat/webirc', channel: '#comicchat' },
+  ];
+
   private favorites(): FavoriteRoom[] {
+    const raw = localStorage.getItem('comicchat-favorites');
+    if (raw === null) {
+      // First run: prepopulate a few known-good servers.
+      localStorage.setItem('comicchat-favorites', JSON.stringify(App.DEFAULT_FAVORITES));
+      return App.DEFAULT_FAVORITES.map((f) => ({ ...f }));
+    }
     try {
-      return JSON.parse(localStorage.getItem('comicchat-favorites') ?? '[]');
+      return JSON.parse(raw);
     } catch {
       return [];
     }
