@@ -873,6 +873,59 @@ export function showAutomationsDialog(
 }
 
 // ---------------------------------------------------------------------------
+// Play Sound dialog (mirrors IDD_SOUND_DLG)
+
+export function showPlaySoundDialog(
+  sounds: string[],
+  onTest: (sound: string) => void,
+): Promise<{ sound: string; message: string } | null> {
+  return new Promise((resolve) => {
+    const { body, buttons, close } = dialogFrame('Play Sound');
+    body.innerHTML = `
+      <div class="field-row-stacked" style="width:320px">
+        <label for="ps-list">Sound file to play:</label>
+        <select id="ps-list" size="10" style="width:100%"></select>
+      </div>
+      <div class="field-row-stacked" style="width:320px;margin-bottom:0">
+        <label for="ps-msg">Accompanying message:</label>
+        <input id="ps-msg" type="text" style="width:100%;box-sizing:border-box">
+      </div>`;
+    const list = body.querySelector<HTMLSelectElement>('#ps-list')!;
+    for (const s of sounds) list.appendChild(new Option(s, s));
+    const msg = body.querySelector<HTMLInputElement>('#ps-msg')!;
+
+    const ok = document.createElement('button');
+    ok.textContent = 'OK';
+    ok.disabled = true;
+    const test = document.createElement('button');
+    test.textContent = 'Test';
+    test.disabled = true;
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    buttons.append(ok, test, cancel);
+
+    list.onchange = () => {
+      ok.disabled = !list.value;
+      test.disabled = !list.value;
+    };
+    const accept = () => {
+      if (!list.value) return;
+      close();
+      resolve({ sound: list.value, message: msg.value.trim() });
+    };
+    list.ondblclick = accept;
+    ok.onclick = accept;
+    test.onclick = () => {
+      if (list.value) onTest(list.value);
+    };
+    cancel.onclick = () => {
+      close();
+      resolve(null);
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Small generic dialogs
 
 export function promptDialog(title: string, label: string, initial = ''): Promise<string | null> {

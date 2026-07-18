@@ -44,6 +44,7 @@ import {
   showConnectDialog,
   showFavoritesDialog,
   showOptionsDialog,
+  showPlaySoundDialog,
   showRoomListDialog,
   showRoomPropertiesDialog,
   showUserListDialog,
@@ -298,6 +299,12 @@ export class App {
         prompt: 'Sets up automatic greetings, flood control, and macros.',
         tip: 'Automation',
         run: () => void this.openAutomations(),
+      },
+      {
+        id: 'ID_PLAYSOUND',
+        prompt: 'Plays a sound and sends an accompanying message.',
+        tip: 'Play Sound',
+        run: () => void this.composeSound(),
       },
 
       // Room
@@ -583,6 +590,7 @@ export class App {
           { sep: true },
           { label: 'Message of the &Day', cmd: 'ID_MOTD' },
           { label: 'Turn O&ff Sounds', cmd: 'ID_TURN_OFF_SOUNDS' },
+          { label: 'Play &Sound...', cmd: 'ID_PLAYSOUND' },
           { sep: true },
           { label: '&Logon Notifications...', cmd: 'ID_VIEW_LOGINNOTIFS' },
           { label: 'M&acros', sub: [{ label: '&Define Macro...', cmd: 'ID_DEFINE_MACRO' }] },
@@ -860,6 +868,70 @@ export class App {
   async openAutomations(initialTab: 'general' | 'notify' | 'rulesets' | 'rules' = 'general') {
     const a = await showAutomationsDialog(initialTab);
     if (a) this.automations = a;
+  }
+
+  // -- sounds ----------------------------------------------------------------
+
+  private audioCtx: AudioContext | null = null;
+  /** Built-in synthesised sounds (the port ships no .wav assets). */
+  private readonly builtinSounds: Record<string, () => void> = {
+    Beep: () => this.tone(880, 0.15, 'square'),
+    Ding: () => this.tone(1320, 0.25, 'sine'),
+    Chime: () => [523, 659, 784].forEach((f, i) => this.tone(f, 0.5, 'sine', i * 0.12)),
+    Buzz: () => this.tone(150, 0.3, 'sawtooth'),
+    Pop: () => this.sweep(600, 180, 0.12),
+    Zip: () => this.sweep(300, 1400, 0.2),
+  };
+
+  private ac(): AudioContext {
+    return (this.audioCtx ??= new AudioContext());
+  }
+
+  private tone(freq: number, dur: number, type: OscillatorType, delay = 0) {
+    const ctx = this.ac();
+    const t = ctx.currentTime + delay;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    o.connect(g).connect(ctx.destination);
+    g.gain.setValueAtTime(0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.start(t);
+    o.stop(t + dur);
+  }
+
+  private sweep(f0: number, f1: number, dur: number) {
+    const ctx = this.ac();
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.linearRampToValueAtTime(f1, t + dur);
+    o.connect(g).connect(ctx.destination);
+    g.gain.setValueAtTime(0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.start(t);
+    o.stop(t + dur);
+  }
+
+  playBuiltinSound(name: string) {
+    try {
+      this.builtinSounds[name]?.();
+    } catch {
+      /* Web Audio may be unavailable */
+    }
+  }
+
+  private async composeSound() {
+    const res = await showPlaySoundDialog(Object.keys(this.builtinSounds), (s) =>
+      this.playBuiltinSound(s),
+    );
+    if (!res) return;
+    this.playBuiltinSound(res.sound);
+    if (this.session && this.room.channel && res.message) {
+      this.session.sendMessage('say', res.message, this.buildOutgoingCC(false));
+    }
   }
 
   /** Send the automatic greeting to a user who just joined, if configured. */
