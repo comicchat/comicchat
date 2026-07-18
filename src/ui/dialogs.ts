@@ -616,6 +616,263 @@ export function showOptionsDialog(
 }
 
 // ---------------------------------------------------------------------------
+// Automations dialog (mirrors IDD_AUTOMATION_PAGE / IDD_NOTIFICATIONS /
+// IDD_RULESETSPAGE / IDD_RULESPAGE — the "Microsoft Chat Automations" sheet)
+
+export type GreetingMode = 'none' | 'whisper' | 'say';
+export interface Macro {
+  key: string;
+  name: string;
+  text: string;
+}
+export interface AutomationsState {
+  greetingMode: GreetingMode;
+  greetingMessage: string;
+  autoIgnore: boolean;
+  floodCount: number;
+  floodInterval: number;
+  macros: Macro[];
+}
+
+const AUTOMATIONS_KEY = 'comicchat-automations';
+
+const DEFAULT_AUTOMATIONS: AutomationsState = {
+  greetingMode: 'none',
+  greetingMessage: 'Howdy %name!  Welcome to room %room.  Enjoy your stay.',
+  autoIgnore: false,
+  floodCount: 4,
+  floodInterval: 5,
+  macros: [],
+};
+
+const MACRO_KEYS = [
+  ...Array.from({ length: 10 }, (_, i) => `Alt+${i}`),
+  ...Array.from({ length: 10 }, (_, i) => `Ctrl+${i}`),
+];
+
+export function loadAutomations(): AutomationsState {
+  try {
+    return { ...DEFAULT_AUTOMATIONS, ...JSON.parse(localStorage.getItem(AUTOMATIONS_KEY) ?? '{}') };
+  } catch {
+    return { ...DEFAULT_AUTOMATIONS };
+  }
+}
+
+export function showAutomationsDialog(
+  initialTab: 'general' | 'notify' | 'rulesets' | 'rules' = 'general',
+): Promise<AutomationsState | null> {
+  return new Promise((resolve) => {
+    const cur = loadAutomations();
+    const macros = cur.macros.map((m) => ({ ...m }));
+    const { body, buttons, close } = dialogFrame('Microsoft Chat Automations');
+    body.classList.add('cd-body', 'au-body');
+
+    body.innerHTML = `
+      <menu role="tablist">
+        <li role="tab" data-tab="general"><a href="#">Automation</a></li>
+        <li role="tab" data-tab="notify"><a href="#">User login notifications</a></li>
+        <li role="tab" data-tab="rulesets"><a href="#">Rule Sets</a></li>
+        <li role="tab" data-tab="rules"><a href="#">Rules</a></li>
+      </menu>
+      <div class="tab-panel" data-panel="general">
+        <fieldset>
+          <legend>Automatic greeting</legend>
+          <p style="margin:0 0 6px">You may choose to send a message to any user that enters the room after you, if you are a host in the current room.</p>
+          <div class="field-row" style="justify-content:center;gap:18px;margin-bottom:6px">
+            <span class="field-row"><input type="radio" name="au-greet" id="au-greet-none"><label for="au-greet-none">None</label></span>
+            <span class="field-row"><input type="radio" name="au-greet" id="au-greet-whisper"><label for="au-greet-whisper">Whispered</label></span>
+            <span class="field-row"><input type="radio" name="au-greet" id="au-greet-say"><label for="au-greet-say">Said</label></span>
+          </div>
+          <textarea id="au-greet-msg" rows="2" style="width:100%;box-sizing:border-box"></textarea>
+        </fieldset>
+        <fieldset>
+          <legend>Auto ignore flooders</legend>
+          <div class="au-flood">
+            <div class="field-row"><input type="checkbox" id="au-autoignore"><label for="au-autoignore">Auto ignore enabled</label></div>
+            <div>
+              <div class="field-row" style="justify-content:flex-end;gap:6px;margin-bottom:4px"><label for="au-count">Message Count:</label><input type="number" id="au-count" min="1" class="au-num"></div>
+              <div class="field-row" style="justify-content:flex-end;gap:6px"><label for="au-interval">Interval</label><input type="number" id="au-interval" min="1" class="au-num"></div>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Macros</legend>
+          <p style="margin:0 0 6px">You may choose to send a message whenever you press a key combination.</p>
+          <div class="field-row" style="gap:6px;margin-bottom:6px">
+            <label for="au-key">Key combination:</label>
+            <select id="au-key">${MACRO_KEYS.map((k) => `<option value="${k}">${k}</option>`).join('')}</select>
+            <label for="au-macroname" style="margin-left:10px">Name:</label>
+            <input type="text" id="au-macroname" style="flex:1">
+          </div>
+          <div class="au-macro-bottom">
+            <textarea id="au-macrotext" rows="2"></textarea>
+            <div class="au-macro-btns">
+              <button id="au-addmacro" type="button">Add Macro</button>
+              <button id="au-delmacro" type="button">Delete Macro</button>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+      <div class="tab-panel" data-panel="notify" hidden>
+        <label for="au-notiflist">Current Notifications:</label>
+        <select id="au-notiflist" size="6" style="width:100%;margin-bottom:8px"></select>
+        <div class="au-notif-grid">
+          <label>Nickname:</label><select disabled><option>is</option></select><input type="text" disabled>
+          <label>User Name:</label><select disabled><option>is</option></select><input type="text" disabled>
+          <label>Host Name:</label><select disabled><option>is</option></select><input type="text" disabled>
+          <label>Server:</label><select disabled><option>is</option></select><input type="text" disabled>
+        </div>
+        <div class="field-row" style="justify-content:flex-end;gap:6px;margin-top:8px">
+          <button type="button" disabled>Add</button><button type="button" disabled>Delete</button>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel="rulesets" hidden>
+        <div class="au-rs-layout">
+          <div>
+            <label>Current Rule Sets:</label>
+            <select size="8" style="width:100%"></select>
+          </div>
+          <div class="au-rs-btns">
+            <button type="button" disabled>Rename Set...</button>
+            <button type="button" disabled>Delete Set</button>
+            <button type="button" disabled>Move Up</button>
+            <button type="button" disabled>Move Down</button>
+          </div>
+        </div>
+        <div class="field-row" style="gap:6px;margin-top:8px">
+          <label for="au-rsname" style="flex:1">Rule set name:</label>
+          <button type="button" disabled>Add Set</button>
+        </div>
+        <input id="au-rsname" type="text" style="width:100%;box-sizing:border-box;margin-bottom:10px">
+        <div class="au-rs-actions">
+          <span>Send a rule set to a user:</span><button type="button" disabled>Send Set</button>
+          <span>Save a rule set into a file:</span><button type="button" disabled>Save Set..</button>
+          <span>Restore a rule set from a file:</span><button type="button" disabled>Load Set...</button>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel="rules" hidden>
+        <div class="au-rs-layout">
+          <div>
+            <label>Current Rule Sets:</label>
+            <select size="4" style="width:100%"></select>
+          </div>
+          <div class="au-rs-btns"><button type="button" disabled>Advanced...</button></div>
+        </div>
+        <fieldset style="margin-top:8px">
+          <legend>Rules of selected Set</legend>
+          <div class="sunken-panel" style="height:150px;background:white;overflow:auto">
+            <table class="interactive" style="width:100%;font-size:11px">
+              <thead><tr><th style="text-align:left">Events</th><th style="text-align:left">Actions</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="au-rules-btns">
+            <button type="button" disabled>Add Rule...</button>
+            <button type="button" disabled>Edit Rule...</button>
+            <button type="button" disabled>Delete Rule</button>
+            <button type="button" disabled>Send To User..</button>
+            <button type="button" disabled>Move Up</button>
+            <button type="button" disabled>Move Down</button>
+            <button type="button" disabled>Add To Sets..</button>
+          </div>
+        </fieldset>
+      </div>`;
+
+    const $ = <T extends HTMLElement = HTMLInputElement>(id: string) =>
+      body.querySelector<T>(`#${id}`)!;
+
+    const tabs = [...body.querySelectorAll<HTMLLIElement>('menu[role=tablist] li')];
+    const panels = [...body.querySelectorAll<HTMLElement>('.tab-panel')];
+    const selectTab = (name: string) => {
+      for (const t of tabs) t.setAttribute('aria-selected', String(t.dataset.tab === name));
+      for (const p of panels) p.hidden = p.dataset.panel !== name;
+    };
+    for (const t of tabs)
+      t.addEventListener('click', (e) => {
+        e.preventDefault();
+        selectTab(t.dataset.tab!);
+      });
+    selectTab(initialTab);
+
+    // greeting
+    $(
+      cur.greetingMode === 'whisper'
+        ? 'au-greet-whisper'
+        : cur.greetingMode === 'say'
+          ? 'au-greet-say'
+          : 'au-greet-none',
+    ).checked = true;
+    $<HTMLTextAreaElement>('au-greet-msg').value = cur.greetingMessage;
+    // flood
+    $('au-autoignore').checked = cur.autoIgnore;
+    $('au-count').value = String(cur.floodCount);
+    $('au-interval').value = String(cur.floodInterval);
+    // macros
+    const keySel = $<HTMLSelectElement>('au-key');
+    const nameInput = $('au-macroname');
+    const textInput = $<HTMLTextAreaElement>('au-macrotext');
+    const loadMacro = () => {
+      const m = macros.find((x) => x.key === keySel.value);
+      nameInput.value = m?.name ?? '';
+      textInput.value = m?.text ?? '';
+    };
+    keySel.onchange = loadMacro;
+    loadMacro();
+    $('au-addmacro').onclick = () => {
+      const text = textInput.value.trim();
+      if (!text) return;
+      const existing = macros.find((x) => x.key === keySel.value);
+      if (existing) {
+        existing.name = nameInput.value.trim();
+        existing.text = text;
+      } else {
+        macros.push({ key: keySel.value, name: nameInput.value.trim(), text });
+      }
+    };
+    $('au-delmacro').onclick = () => {
+      const i = macros.findIndex((x) => x.key === keySel.value);
+      if (i >= 0) macros.splice(i, 1);
+      loadMacro();
+    };
+
+    const ok = document.createElement('button');
+    ok.textContent = 'OK';
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    buttons.append(ok, cancel);
+    ok.onclick = () => {
+      // fold an in-progress macro edit into the list
+      if (textInput.value.trim()) $('au-addmacro').click();
+      const next: AutomationsState = {
+        greetingMode: $('au-greet-whisper').checked
+          ? 'whisper'
+          : $('au-greet-say').checked
+            ? 'say'
+            : 'none',
+        greetingMessage: $<HTMLTextAreaElement>('au-greet-msg').value,
+        autoIgnore: $('au-autoignore').checked,
+        floodCount: Math.max(
+          1,
+          parseInt($('au-count').value, 10) || DEFAULT_AUTOMATIONS.floodCount,
+        ),
+        floodInterval: Math.max(
+          1,
+          parseInt($('au-interval').value, 10) || DEFAULT_AUTOMATIONS.floodInterval,
+        ),
+        macros,
+      };
+      localStorage.setItem(AUTOMATIONS_KEY, JSON.stringify(next));
+      close();
+      resolve(next);
+    };
+    cancel.onclick = () => {
+      close();
+      resolve(null);
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Small generic dialogs
 
 export function promptDialog(title: string, label: string, initial = ''): Promise<string | null> {

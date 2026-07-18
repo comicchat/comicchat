@@ -33,11 +33,13 @@ import type {
 import { ChatSession } from '../irc/session';
 import { CommandRegistry } from './commands';
 import {
+  loadAutomations,
   loadOptions,
   loadPrefs,
   messageDialog,
   promptDialog,
   showAboutDialog,
+  showAutomationsDialog,
   showColorDialog,
   showConnectDialog,
   showFavoritesDialog,
@@ -46,6 +48,7 @@ import {
   showRoomPropertiesDialog,
   showUserListDialog,
   showWhisperBoxDialog,
+  type AutomationsState,
   type FavoriteRoom,
   type OptionsState,
 } from './dialogs';
@@ -88,6 +91,9 @@ export class App {
   statusWindowVisible = false;
   statusBarVisible = true;
   options: OptionsState = loadOptions();
+  automations: AutomationsState = loadAutomations();
+  /** recent message timestamps per nick, for flood detection */
+  private floodTimes = new Map<string, number[]>();
   soundsOff = !this.options.playSounds;
   away = false;
   transcript: TranscriptLine[] = [];
@@ -286,6 +292,12 @@ export class App {
         prompt: 'Changes the options for Microsoft Chat.',
         tip: 'Options',
         run: () => void this.openOptions(),
+      },
+      {
+        id: 'ID_VIEW_AUTOMATIONS',
+        prompt: 'Sets up automatic greetings, flood control, and macros.',
+        tip: 'Automation',
+        run: () => void this.openAutomations(),
       },
 
       // Room
@@ -664,6 +676,7 @@ export class App {
 
   private initAccelerators() {
     document.addEventListener('keydown', (e) => {
+      this.handleMacroKey(e);
       if (!e.ctrlKey || e.altKey || e.metaKey) return;
       const k = e.key.toLowerCase();
       const map: Record<string, string> = {
@@ -844,6 +857,52 @@ export class App {
     this.applyOptions();
   }
 
+  async openAutomations(initialTab: 'general' | 'notify' | 'rulesets' | 'rules' = 'general') {
+    const a = await showAutomationsDialog(initialTab);
+    if (a) this.automations = a;
+  }
+
+  /** Send the automatic greeting to a user who just joined, if configured. */
+  private greetNewcomer(nick: string) {
+    const a = this.automations;
+    if (a.greetingMode === 'none' || !this.session || !this.room.channel) return;
+    if (nick.toLowerCase() === this.session.nick.toLowerCase()) return;
+    const text = a.greetingMessage.replace(/%name/gi, nick).replace(/%room/gi, this.room.channel);
+    if (!text.trim()) return;
+    const cc = this.buildOutgoingCC(false);
+    if (a.greetingMode === 'whisper') this.session.sendMessage('whisper', text, cc, nick);
+    else this.session.sendMessage('say', text, cc);
+  }
+
+  /** Auto-ignore a user who sends more than floodCount messages within
+   *  floodInterval seconds. Returns true if the message should be dropped. */
+  private isFlooding(nick: string, now: number): boolean {
+    const a = this.automations;
+    if (!a.autoIgnore) return false;
+    const key = nick.toLowerCase();
+    if (this.ignored.has(key)) return true;
+    const windowStart = now - a.floodInterval * 1000;
+    const times = (this.floodTimes.get(key) ?? []).filter((t) => t >= windowStart);
+    times.push(now);
+    this.floodTimes.set(key, times);
+    if (times.length > a.floodCount) {
+      this.ignored.add(key);
+      this.addStatusLine(`Auto-ignoring ${nick} (flooding).`);
+      return true;
+    }
+    return false;
+  }
+
+  /** Fire a macro's message when its key combination is pressed. */
+  private handleMacroKey(e: KeyboardEvent) {
+    if (!this.session || !this.room.channel) return;
+    const combo = `${e.ctrlKey ? 'Ctrl+' : ''}${e.altKey ? 'Alt+' : ''}${e.key}`;
+    const macro = this.automations.macros.find((m) => m.key.toLowerCase() === combo.toLowerCase());
+    if (!macro) return;
+    e.preventDefault();
+    this.session.sendMessage('say', macro.text, this.buildOutgoingCC(false));
+  }
+
   /** Apply the persisted Options to live state (sounds, text view, profile). */
   private applyOptions() {
     this.soundsOff = !this.options.playSounds;
@@ -906,6 +965,7 @@ export class App {
       case 'join':
         if (this.options.showArrivals) this.addStatusLine(`${ev.nick} has joined the room.`);
         void this.registerMember(ev.nick);
+        this.greetNewcomer(ev.nick);
         break;
       case 'part':
         if (ev.nick.toLowerCase() === this.session?.nick.toLowerCase()) {
@@ -989,6 +1049,7 @@ export class App {
   }
 
   private async handleChatMessage(msg: ChatMessage) {
+    if (!msg.self && this.isFlooding(msg.from, msg.time)) return;
     if (this.ignored.has(msg.from.toLowerCase())) return;
 
     const member = await this.registerMember(msg.from, msg.cc?.characterId ?? undefined);

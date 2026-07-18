@@ -412,6 +412,60 @@ fieldset {
   min-height: 14px;
 }
 
+/* Automations dialog */
+.au-body {
+  width: 440px;
+}
+.au-flood {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.au-num {
+  width: 48px;
+}
+.au-macro-bottom {
+  display: flex;
+  gap: 8px;
+}
+.au-macro-bottom textarea {
+  flex: 1;
+}
+.au-macro-btns,
+.au-rs-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.au-notif-grid {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 6px 8px;
+  align-items: center;
+}
+.au-rs-layout {
+  display: flex;
+  gap: 10px;
+}
+.au-rs-layout > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.au-rs-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+.au-rules-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
 /* Options dialog */
 .opt-two-col {
   display: grid;
