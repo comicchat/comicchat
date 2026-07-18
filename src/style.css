@@ -405,6 +405,29 @@ fieldset {
   min-height: 14px;
 }
 
+/* Connect / Personal Info tabs (mirror the original Setup property pages) */
+.cd-welcome {
+  margin: 0 0 12px;
+}
+.cd-sep {
+  margin: 12px 0;
+}
+.cd-body .tab-panel[data-panel='connect'] input[type='text'],
+.cd-body .tab-panel[data-panel='connect'] select,
+.cd-body .tab-panel[data-panel='personal'] input[type='text'],
+.cd-body .tab-panel[data-panel='personal'] textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+.cd-body .tab-panel[data-panel='personal'] textarea {
+  resize: vertical;
+}
+.cd-body .cd-chan-input {
+  width: auto;
+  flex: 1;
+  margin-left: 6px;
+}
+
 /* --- splitters --------------------------------------------------------- */
 
 .splitter {

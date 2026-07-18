@@ -32,11 +32,14 @@ function dialogFrame(title: string): {
 }
 
 export interface ConnectChoice {
-  mode: 'demo' | 'irc';
   url: string;
   nick: string;
   realname: string;
+  email: string;
+  homepage: string;
+  profile: string;
   channel: string;
+  action: 'room' | 'list' | 'connectonly';
   characterId: string;
   backgroundId: string;
 }
@@ -65,6 +68,7 @@ export function showConnectDialog(
   art: ArtStore,
   characterIds: string[],
   backgroundIds: string[],
+  favorites: FavoriteRoom[],
   defaults: Partial<ConnectChoice>,
   initialTab: 'connect' | 'character' | 'background' = 'connect',
 ): Promise<ConnectChoice | null> {
@@ -80,36 +84,55 @@ export function showConnectDialog(
         <li role="tab" data-tab="background"><a href="#">Background</a></li>
       </menu>
       <div class="tab-panel" data-panel="connect">
-        <fieldset>
-          <legend>Connect to</legend>
-          <div class="field-row"><input id="cd-demo" type="radio" name="cd-mode">
-            <label for="cd-demo">Demo room (offline, scripted characters)</label></div>
-          <div class="field-row"><input id="cd-irc" type="radio" name="cd-mode">
-            <label for="cd-irc">Internet Relay Chat server (WebSocket)</label></div>
-        </fieldset>
+        <p class="cd-welcome">Welcome to Microsoft Chat.  You can specify chat
+          server connection information here, and optionally adjust your Personal
+          Information from the next tab.</p>
         <div class="field-row-stacked">
-          <label for="cd-url">Server WebSocket URL</label>
-          <input id="cd-url" type="text">
+          <label for="cd-fav">Favorites:</label>
+          <select id="cd-fav"></select>
         </div>
         <div class="field-row-stacked">
-          <label for="cd-preset">Presets</label>
-          <select id="cd-preset">
+          <label for="cd-url">Server:</label>
+          <input id="cd-url" type="text" list="cd-server-presets" autocomplete="off">
+          <datalist id="cd-server-presets">
             ${PRESETS.map((p) => `<option value="${p.url}">${p.label}</option>`).join('')}
-          </select>
+          </datalist>
         </div>
-        <div class="field-row-stacked">
-          <label for="cd-chan">Chat room</label>
-          <input id="cd-chan" type="text">
+        <hr class="cd-sep">
+        <div class="field-row">
+          <input id="cd-act-room" type="radio" name="cd-action">
+          <label for="cd-act-room">Go to chat room:</label>
+          <input id="cd-chan" type="text" class="cd-chan-input">
+        </div>
+        <div class="field-row">
+          <input id="cd-act-list" type="radio" name="cd-action">
+          <label for="cd-act-list">Show all available chat rooms</label>
+        </div>
+        <div class="field-row">
+          <input id="cd-act-only" type="radio" name="cd-action">
+          <label for="cd-act-only">Just connect to server</label>
         </div>
       </div>
       <div class="tab-panel" data-panel="personal" hidden>
         <div class="field-row-stacked">
-          <label for="cd-nick">Nickname</label>
+          <label for="cd-realname">Real name:</label>
+          <input id="cd-realname" type="text" maxlength="60">
+        </div>
+        <div class="field-row-stacked">
+          <label for="cd-nick">Nickname:</label>
           <input id="cd-nick" type="text" maxlength="32">
         </div>
         <div class="field-row-stacked">
-          <label for="cd-realname">Real name</label>
-          <input id="cd-realname" type="text" maxlength="60">
+          <label for="cd-email">E-mail address:</label>
+          <input id="cd-email" type="text">
+        </div>
+        <div class="field-row-stacked">
+          <label for="cd-homepage">WWW Home Page:</label>
+          <input id="cd-homepage" type="text">
+        </div>
+        <div class="field-row-stacked">
+          <label for="cd-profile">Brief description of yourself:</label>
+          <textarea id="cd-profile" rows="3"></textarea>
         </div>
       </div>
       <div class="tab-panel" data-panel="character" hidden>
@@ -157,27 +180,45 @@ export function showConnectDialog(
     selectTab(initialTab);
 
     // connect tab state
-    const demoRadio = $('cd-demo');
-    const ircRadio = $('cd-irc');
-    if ((prefs.mode ?? 'demo') === 'demo') demoRadio.checked = true;
-    else ircRadio.checked = true;
     const urlInput = $('cd-url');
     urlInput.value = prefs.url ?? PRESETS[0].url;
-    const preset = $<HTMLSelectElement>('cd-preset');
-    const syncMode = () => {
-      const irc = ircRadio.checked;
-      urlInput.disabled = !irc;
-      preset.disabled = !irc;
+    const chanInput = $('cd-chan');
+    chanInput.value = prefs.channel ?? '#comicchat';
+
+    // connect action radios (Go to room / list all rooms / just connect)
+    const actRoom = $('cd-act-room');
+    const actList = $('cd-act-list');
+    const actOnly = $('cd-act-only');
+    const action = prefs.action ?? 'room';
+    (action === 'list' ? actList : action === 'connectonly' ? actOnly : actRoom).checked = true;
+    const syncAction = () => {
+      chanInput.disabled = !actRoom.checked;
     };
-    demoRadio.onchange = syncMode;
-    ircRadio.onchange = syncMode;
-    syncMode();
-    preset.onchange = () => {
-      urlInput.value = preset.value;
+    for (const r of [actRoom, actList, actOnly]) r.onchange = syncAction;
+    syncAction();
+
+    // Favorites combo: choose a saved room to fill Server + room.
+    const favSelect = $<HTMLSelectElement>('cd-fav');
+    favSelect.appendChild(new Option('(select a favorite)', ''));
+    favorites.forEach((f, i) => {
+      favSelect.appendChild(new Option(`${f.channel} on ${f.url}`, String(i)));
+    });
+    favSelect.onchange = () => {
+      const f = favorites[Number(favSelect.value)];
+      if (!f) return;
+      urlInput.value = f.url;
+      chanInput.value = f.channel;
+      actRoom.checked = true;
+      syncAction();
     };
-    $('cd-chan').value = prefs.channel ?? '#comicchat';
+
+    // personal info
     $('cd-nick').value = prefs.nick ?? `WebGuest${Math.floor(Math.random() * 1000)}`;
     $('cd-realname').value = prefs.realname ?? 'Comic Chat Web user';
+    $('cd-email').value = prefs.email ?? '';
+    $('cd-homepage').value = prefs.homepage ?? '';
+    $<HTMLTextAreaElement>('cd-profile').value =
+      prefs.profile ?? 'This person is too lazy to create a profile entry.';
 
     // character tab
     const charList = $<HTMLSelectElement>('cd-char-list');
@@ -256,12 +297,20 @@ export function showConnectDialog(
     cancel.textContent = 'Cancel';
     buttons.append(ok, cancel);
     ok.onclick = () => {
+      const selectedAction: ConnectChoice['action'] = actList.checked
+        ? 'list'
+        : actOnly.checked
+          ? 'connectonly'
+          : 'room';
       const choice: ConnectChoice = {
-        mode: ircRadio.checked ? 'irc' : 'demo',
-        url: urlInput.value.trim(),
+        url: urlInput.value.trim() || PRESETS[0].url,
         nick: $('cd-nick').value.trim() || 'WebGuest',
         realname: $('cd-realname').value.trim() || 'Comic Chat Web user',
-        channel: $('cd-chan').value.trim() || '#comicchat',
+        email: $('cd-email').value.trim(),
+        homepage: $('cd-homepage').value.trim(),
+        profile: $<HTMLTextAreaElement>('cd-profile').value.trim(),
+        channel: chanInput.value.trim() || '#comicchat',
+        action: selectedAction,
         characterId: selectedChar,
         backgroundId: selectedBg,
       };
@@ -461,7 +510,6 @@ export function showRoomPropertiesDialog(
 export interface FavoriteRoom {
   url: string;
   channel: string;
-  mode: 'demo' | 'irc';
 }
 
 export function showFavoritesDialog(
@@ -474,7 +522,7 @@ export function showFavoritesDialog(
     favorites.forEach((f, i) => {
       const opt = document.createElement('option');
       opt.value = String(i);
-      opt.textContent = f.mode === 'demo' ? `${f.channel} (demo room)` : `${f.channel} on ${f.url}`;
+      opt.textContent = `${f.channel} on ${f.url}`;
       list.appendChild(opt);
     });
     const go = document.createElement('button');

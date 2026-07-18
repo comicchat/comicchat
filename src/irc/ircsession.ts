@@ -30,6 +30,7 @@ export class IrcSession extends ChatSession {
   }
 
   connect() {
+    if (this.opts.profile) this.profile = this.opts.profile;
     this.emit({ type: 'status', status: 'connecting' });
     const client = new Client({
       url: this.opts.url,
@@ -50,7 +51,16 @@ export class IrcSession extends ChatSession {
           });
         }
         if (!this.joined) {
-          client.send({ command: 'JOIN', params: [this.opts.channel] });
+          // Mirror the Connect dialog's action. Once we've actually joined a
+          // room (see the JOIN handler), opts.action is pinned to 'room' so a
+          // later reconnect rejoins it rather than re-listing.
+          const action = this.opts.action ?? 'room';
+          if (action === 'room') {
+            client.send({ command: 'JOIN', params: [this.opts.channel] });
+          } else if (action === 'list') {
+            client.send({ command: 'LIST', params: [] });
+          }
+          // 'connectonly' → stay connected without joining
         }
       } else if (client.status === Client.Status.DISCONNECTED) {
         this.joined = false;
@@ -88,6 +98,8 @@ export class IrcSession extends ChatSession {
         const channel = msg.params[0];
         if (this.client!.isMyNick(from)) {
           this.joined = true;
+          this.opts.channel = channel;
+          this.opts.action = 'room';
           this.emit({ type: 'joined', channel });
           this.announceCharacter({ characterId: this.opts.characterId });
         } else {

@@ -22,7 +22,6 @@ import { BALLOON_FONT_TWIPS } from '../engine/twips';
 import type { Emotion } from '../art/types';
 import { EM, EMOTION_FLOATS } from '../art/types';
 import type { BalloonType } from '../engine/balloon';
-import { DemoSession } from '../irc/demo';
 import { IrcSession } from '../irc/ircsession';
 import type {
   BalloonKind,
@@ -788,6 +787,7 @@ export class App {
       this.art,
       this.rosterCharacterIds(),
       this.rosterBackgroundIds(),
+      this.favorites(),
       {
         nick: this.session?.opts.nick,
         characterId: this.myCharacterId,
@@ -803,12 +803,14 @@ export class App {
       this.session?.announceBackground(choice.backgroundId);
     }
 
+    // Already connected to the same server and heading to the same room: just
+    // re-render rather than reconnecting.
     if (
       this.session &&
+      choice.action === 'room' &&
       this.session.opts.url === choice.url &&
       this.session.opts.nick === choice.nick &&
-      this.session.opts.channel === choice.channel &&
-      this.session instanceof DemoSession === (choice.mode === 'demo')
+      this.session.opts.channel === choice.channel
     ) {
       this.queueRender();
       return;
@@ -820,8 +822,10 @@ export class App {
       nick: choice.nick,
       channel: choice.channel,
       characterId: choice.characterId,
+      action: choice.action,
+      profile: choice.profile,
     };
-    const session = choice.mode === 'demo' ? new DemoSession(opts) : new IrcSession(opts);
+    const session = new IrcSession(opts);
     this.session = session;
     session.onEvent((ev) => void this.handleSessionEvent(ev));
     session.connect();
@@ -852,11 +856,7 @@ export class App {
                 : 'Disconnected',
         );
         if (ev.status === 'registered') {
-          this.addStatusLine(
-            this.session instanceof DemoSession
-              ? 'Connected to the demo room.'
-              : `Connected to ${this.session?.opts.url}.`,
-          );
+          this.addStatusLine(`Connected to ${this.session?.opts.url}.`);
         }
         if (ev.status === 'error') this.addStatusLine(`Error: ${ev.detail ?? 'connection error'}`);
         if (ev.status === 'disconnected') this.setTitle('Microsoft Chat - Not Connected');
@@ -1340,7 +1340,6 @@ export class App {
     const entry: FavoriteRoom = {
       url: this.session.opts.url,
       channel: this.room.channel,
-      mode: this.session instanceof DemoSession ? 'demo' : 'irc',
     };
     if (!favs.some((f) => f.url === entry.url && f.channel === entry.channel)) {
       favs.push(entry);
@@ -1366,17 +1365,10 @@ export class App {
       void this.openFavorites();
     } else {
       const f = favs[res.index];
-      if (
-        this.session &&
-        this.session instanceof DemoSession === (f.mode === 'demo') &&
-        this.session.opts.url === f.url
-      ) {
+      if (this.session && this.session.opts.url === f.url) {
         this.session.joinRoom(f.channel);
       } else {
-        messageDialog(
-          'Favorites',
-          `Connect to ${f.mode === 'demo' ? 'the demo room' : f.url} first (File → New Connection).`,
-        );
+        messageDialog('Favorites', `Connect to ${f.url} first (File → New Connection).`);
       }
     }
   }
